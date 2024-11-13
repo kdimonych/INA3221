@@ -104,8 +104,8 @@ public:
 
     bool init( );
 
-    float voltageV( std::uint8_t aChannel = KHannel1 );
-    float currentA( std::uint8_t aChannel = KHannel1 );
+    float busVoltageV( std::uint8_t aChannel = KHannel1 );
+    float shuntVoltageV( std::uint8_t aChannel = KHannel1 );
 
     int
     errorCode( ) const
@@ -120,7 +120,7 @@ private:
     int iErrorCode = KOk;
 
     float busRegisterToVoltage( std::uint16_t aVoltageRegister );
-    float shuntRegisterToAmp( std::uint16_t aShuntVoltageRegister );
+    float shuntRegisterToVoltage( std::uint16_t aShuntVoltageRegister );
 
     template < typename RegisterType >
     int readRegister( std::uint8_t aReg, RegisterType& registerValue );
