@@ -14,7 +14,7 @@ public:
     /**
      * @brief Attempt to write specified number of bytes to address, blocking
      *
-     * @param aAddr 7-bit address of device to write to
+     * @param aDeviceAddress 7-bit address of device to write to
      * @param aSrc Pointer to data to send
      * @param aLen Length of data in bytes to send
      * @param aNoStop If true, master retains control of the bus at the end of the transfer (no Stop
@@ -22,13 +22,16 @@ public:
      * @return int Number of bytes written, or IAbstarctI2CBus::KGenericError if address not
      * acknowledged, no device present.
      */
-    virtual int write( std::uint8_t aAddr, const std::uint8_t* aSrc, size_t aLen, bool aNoStop )
+    virtual int write( std::uint8_t aDeviceAddress,
+                       const std::uint8_t* aSrc,
+                       size_t aLen,
+                       bool aNoStop )
         = 0;
 
     /**
      * @brief Attempt to read specified number of bytes from address, blocking
      *
-     * @param aAddr 7-bit address of device to read from
+     * @param aDeviceAddress 7-bit address of device to read from
      * @param aDst Pointer to buffer to receive data
      * @param aLen Length of data in bytes to receive
      * @param aNoStop If true, master retains control of the bus at the end of the transfer (no Stop
@@ -36,7 +39,48 @@ public:
      * @return Number of bytes read, or IAbstarctI2CBus::KGenericError if address not acknowledged
      * or no device present.
      */
-    virtual int read( std::uint8_t aAddr, std::uint8_t* aDst, size_t aLen, bool aNoStop ) = 0;
+    virtual int read( std::uint8_t aDeviceAddress, std::uint8_t* aDst, size_t aLen, bool aNoStop )
+        = 0;
+
+    template < typename TRegister >
+    inline int
+    readLastRegisterRaw( std::uint8_t aDeviceAddress, TRegister& aRegisterValue )
+    {
+        return read( aDeviceAddress, reinterpret_cast< std::uint8_t* >( &aRegisterValue ),
+                     sizeof( aRegisterValue ), false );
+    }
+
+    template < typename TRegisterAddress, typename TRegister >
+    int
+    readRegisterRaw( std::uint8_t aDeviceAddress,
+                     TRegisterAddress aRegisterAddress,
+                     TRegister& aRegisterValue )
+    {
+        int count = write( aDeviceAddress, &aRegisterAddress, sizeof( aRegisterAddress ), true );
+        if ( count < sizeof( aRegisterAddress ) )
+        {
+            return count;
+        }
+
+        return readLastRegisterRaw( aDeviceAddress, aRegisterValue );
+    }
+
+    template < typename TRegisterAddress, typename RegisterType >
+    int
+    writeRegisterRaw( std::uint8_t aDeviceAddress,
+                      TRegisterAddress aRegisterAddress,
+                      RegisterType aRegisterValue )
+    {
+        struct alignas( TRegisterAddress ) RawDataPack
+        {
+            TRegisterAddress iRegisterAddress;
+            RegisterType iRegisterValue;
+        };
+
+        RawDataPack dataPack{ aRegisterAddress, aRegisterValue };
+        return write( aDeviceAddress, reinterpret_cast< const std::uint8_t* >( &dataPack ),
+                      sizeof( dataPack ), false );
+    }
 };
 
 class CIina3221
@@ -47,17 +91,21 @@ public:
     static constexpr std::uint8_t KSDAAddress = 0x42;      // A0 pulled to SDA
     static constexpr std::uint8_t KSCLAddress = 0x43;      // A0 pulled to SCL
 
-    static constexpr std::uint8_t Khannel1 = 0x01;
-    static constexpr std::uint8_t Khannel2 = 0x02;
-    static constexpr std::uint8_t Khannel3 = 0x03;
+    static constexpr std::uint8_t KHannel1 = 0x01;
+    static constexpr std::uint8_t KHannel2 = 0x02;
+    static constexpr std::uint8_t KHannel3 = 0x03;
 
-    CIina3221( IAbstarctI2CBus& aI2CBus, std::uint8_t aAddr = KDefaultAddress );
+    struct Configuration
+    {
+    };
+
+    CIina3221( IAbstarctI2CBus& aI2CBus, std::uint8_t aDeviceAddress = KDefaultAddress );
     ~CIina3221( ) = default;
 
     bool init( );
 
-    float voltageV( std::uint8_t aChannel = Khannel1 );
-    float currentA( std::uint8_t aChannel = Khannel1 );
+    float voltageV( std::uint8_t aChannel = KHannel1 );
+    float currentA( std::uint8_t aChannel = KHannel1 );
 
     int
     errorCode( ) const
@@ -68,10 +116,11 @@ public:
 private:
     /* data */
     IAbstarctI2CBus& iI2CBus;
-    const std::uint8_t iAddr;
+    const std::uint8_t iDeviceAddress;
     int iErrorCode = KOk;
 
-    float ShuntToAmp( int shunt );
+    float busRegisterToVoltage( std::uint16_t aVoltageRegister );
+    float shuntRegisterToAmp( std::uint16_t aShuntVoltageRegister );
 
     template < typename RegisterType >
     int readRegister( std::uint8_t aReg, RegisterType& registerValue );

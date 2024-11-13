@@ -1,7 +1,7 @@
 #include <INA3221.h>
 
 #define DEVICE_ID 0x40
-#define SIGNATURE 8242
+#define SIGNATURE 0x3220
 #define REG_RESET 0x00
 #define REG_DATA_ch1 0x01  // ch 1 shunt
 #define REG_DATA_ch2 0x03  // ch 2 shunt
@@ -11,6 +11,7 @@ namespace ExternalDevice
 {
 namespace
 {
+
 std::uint32_t
 changeEndian( std::uint32_t x )
 {
@@ -30,69 +31,60 @@ changeEndian( std::uint16_t x )
 
 }  // namespace
 
-CIina3221::CIina3221( IAbstarctI2CBus& aI2CBus, std::uint8_t aAddr )
+CIina3221::CIina3221( IAbstarctI2CBus& aI2CBus, std::uint8_t aDeviceAddress )
     : iI2CBus{ aI2CBus }
-    , iAddr{ aAddr }
+    , iDeviceAddress{ aDeviceAddress }
 {
 }
 
 float
-CIina3221::ShuntToAmp( int shunt )
+CIina3221::busRegisterToVoltage( std::uint16_t aVoltageRegister )
 {
-    // sign change for negative value (bit 13 is sign)
-    if ( shunt > 4096 )
+    // 7FF8 = 32.76
+    if ( aVoltageRegister >= 0x8000 )
     {
-        shunt = -( 8192 - shunt );
+        aVoltageRegister = -( 0x7FF8 & aVoltageRegister );
     }
-    // shunt raw value to mv (163.8mV LSB (SD0):40μV) datasheet
-    float amp1mv = ( 163.8 / 4096 ) * shunt;
-    // for my shunt the producer does not recomend to go above 80A, IC is able to
-    // measure up to 108 A :) I have a 50A/75mv shunt so A on channel is:
-    float Amp = amp1mv * 50 / 75;
-    // if you do not plan to use external shunt you are limited to 1.6 A / channel
-    // default A without external shunt R on device is 0.1 ohm comment line above
-    // and uncomment next line:
-    //      float Amp=amp1mv*10
-    return Amp;
+    aVoltageRegister /= 8;
+
+    float amp = ( 32.76 / 0x0FFF ) * static_cast< std::int16_t >( aVoltageRegister );
+    return amp;
+}
+
+float
+CIina3221::shuntRegisterToAmp( std::uint16_t aShuntVoltageRegister )
+{
+    if ( aShuntVoltageRegister >= 0x8000 )
+    {
+        aShuntVoltageRegister = -( 0x7FF8 & aShuntVoltageRegister );
+    }
+    aShuntVoltageRegister /= 8;
+
+    float volt = ( 163.8 / 0x0FFF ) * static_cast< std::int16_t >( aShuntVoltageRegister );
+    return volt;
 }
 
 template < typename RegisterType >
 int
-CIina3221::readRegister( std::uint8_t aReg, RegisterType& registerValue )
+CIina3221::readRegister( std::uint8_t aRegisterAddress, RegisterType& aRegisterValue )
 {
-    int count = iI2CBus.write( iAddr, &aReg, sizeof( aReg ), true );
-    if ( count < sizeof( aReg ) )
+    int count = iI2CBus.readRegisterRaw( iDeviceAddress, aRegisterAddress, aRegisterValue );
+    if ( count < sizeof( aRegisterValue ) )
     {
-        return KGenericError;
+        return count;
     }
 
-    std::uint16_t registerValue = 0;
-    count = iI2CBus.read( iAddr, reinterpret_cast< std::uint8_t* >( &registerValue ),
-                          sizeof( registerValue ), false );
-    if ( count < sizeof( registerValue ) )
-    {
-        return KGenericError;
-    }
+    aRegisterValue = changeEndian( aRegisterValue );
     return count;
 }
 
 template < typename RegisterType >
 int
-CIina3221::writeRegister( std::uint8_t aReg, RegisterType registerValue )
+CIina3221::writeRegister( std::uint8_t aRegisterAddress, RegisterType aRegisterValue )
 {
-    int count = iI2CBus.write( iAddr, &aReg, sizeof( aReg ), true );
-    if ( count < sizeof( aReg ) )
-    {
-        return KGenericError;
-    }
+    aRegisterValue = changeEndian( aRegisterValue );
 
-    count = iI2CBus.write( iAddr, reinterpret_cast< const std::uint8_t* >( &registerValue ),
-                           sizeof( registerValue ), false );
-    if ( count < sizeof( registerValue ) )
-    {
-        return KGenericError;
-    }
-    return count;
+    return iI2CBus.writeRegisterRaw( iDeviceAddress, &aRegisterAddress, aRegisterValue );
 }
 
 bool
@@ -129,7 +121,7 @@ CIina3221::init( )
 }
 
 float
-CIina3221::voltageV( std::uint8_t aChannel = Khannel1 )
+CIina3221::voltageV( std::uint8_t aChannel )
 {
     constexpr std::uint8_t KShuntBusRegOffset = 0x02;
     if ( aChannel > 3 )
@@ -140,12 +132,11 @@ CIina3221::voltageV( std::uint8_t aChannel = Khannel1 )
 
     std::uint16_t voltage = 0;
     readRegister( KShuntBusRegOffset + ( 2 * ( aChannel - 1 ) ), voltage );
-    voltage = changeEndian( voltage ) / 8;  // ?
-    return ShuntToAmp( voltage );           // TODO: redo
+    return busRegisterToVoltage( voltage );  // TODO: redo
 }
 
 float
-CIina3221::currentA( std::uint8_t aChannel = Khannel1 )
+CIina3221::currentA( std::uint8_t aChannel )
 {
     constexpr std::uint8_t KShuntBusRegOffset = 0x01;
     if ( aChannel > 3 )
@@ -157,6 +148,6 @@ CIina3221::currentA( std::uint8_t aChannel = Khannel1 )
     std::uint16_t shunt = 0;
     readRegister( KShuntBusRegOffset + ( 2 * ( aChannel - 1 ) ), shunt );
     shunt = changeEndian( shunt ) / 8;  // ?
-    return ShuntToAmp( shunt );
+    return shuntRegisterToAmp( shunt );
 }
 }  // namespace ExternalDevice
