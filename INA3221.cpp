@@ -2,7 +2,6 @@
 
 #define DEVICE_ID 0x40
 #define SIGNATURE 0x3220
-#define REG_RESET 0x00
 #define REG_DATA_ch1 0x01  // ch 1 shunt
 #define REG_DATA_ch2 0x03  // ch 2 shunt
 #define REG_DATA_ch3 0x05  // ch 3 shunt
@@ -12,8 +11,11 @@ namespace ExternalDevice
 namespace
 {
 
+static constexpr std::uint8_t KRegConfig = 0x00;
+static constexpr std::uint8_t KDieId = 0xFF;
+
 inline std::uint16_t
-ToTwosComplent( std::uint16_t aValue )
+ToTwosComplement( std::uint16_t aValue )
 {
     if ( aValue >= 0x8000 )
     {
@@ -50,9 +52,51 @@ ChangeEndian( std::uint16_t x )
     return x;
 }
 
+std::uint16_t
+PackConfig( const CIina3221::CConfig& aConfig )
+{
+    std::uint16_t result = 0x0000;
+    result |= static_cast< std::uint16_t >( aConfig.iOperationMode );
+    result |= static_cast< std::uint16_t >( aConfig.iShuntVoltageConversionTime ) << 3;
+    result |= static_cast< std::uint16_t >( aConfig.iBusVoltageConversionTime ) << 6;
+    result |= static_cast< std::uint16_t >( aConfig.iAveragingMode ) << 9;
+    result |= static_cast< std::uint16_t >( aConfig.iChannel3Enable ) << 12;
+    result |= static_cast< std::uint16_t >( aConfig.iChannel3Enable ) << 13;
+    result |= static_cast< std::uint16_t >( aConfig.iChannel3Enable ) << 14;
+    result |= static_cast< std::uint16_t >( aConfig.iRstart ) << 15;
+
+    return result;
+    // return ChangeEndian( result );
+}
+
+void
+UnpackConfig( CIina3221::CConfig& aConfig, std::uint16_t aPackedConfig )
+{
+    // aPackedConfig = ChangeEndian( aPackedConfig );
+    aConfig.iOperationMode = static_cast< CIina3221::OperationMode >( aPackedConfig & 0x7 );
+    aConfig.iShuntVoltageConversionTime
+        = static_cast< CIina3221::ConversionTime >( ( aPackedConfig >> 3 ) & 0x7 );
+    aConfig.iBusVoltageConversionTime
+        = static_cast< CIina3221::ConversionTime >( ( aPackedConfig >> 6 ) & 0x7 );
+    aConfig.iAveragingMode
+        = static_cast< CIina3221::AveragingMode >( ( aPackedConfig >> 9 ) & 0x7 );
+    aConfig.iChannel3Enable = static_cast< bool >( ( aPackedConfig >> 12 ) & 0x7 );
+    aConfig.iChannel2Enable = static_cast< bool >( ( aPackedConfig >> 13 ) & 0x7 );
+    aConfig.iChannel1Enable = static_cast< bool >( ( aPackedConfig >> 14 ) & 0x7 );
+    aConfig.iRstart = static_cast< bool >( ( aPackedConfig >> 15 ) & 0x7 );
+}
+
+inline CIina3221::CConfig
+UnpackConfig( std::uint16_t aPackedConfig )
+{
+    CIina3221::CConfig config;
+    UnpackConfig( config, aPackedConfig );
+    return config;
+}
+
 }  // namespace
 
-CIina3221::CIina3221( IAbstarctI2CBus& aI2CBus, std::uint8_t aDeviceAddress )
+CIina3221::CIina3221( IAbstractI2CBus& aI2CBus, std::uint8_t aDeviceAddress )
     : iI2CBus{ aI2CBus }
     , iDeviceAddress{ aDeviceAddress }
 {
@@ -103,28 +147,28 @@ CIina3221::WriteRegister( std::uint8_t aRegisterAddress, RegisterType aRegisterV
 }
 
 bool
-CIina3221::Init( )
+CIina3221::Init( const CConfig& aConfig )
 {
-    constexpr std::uint16_t KResetCmd = 0b1111111111111111;
+    const std::uint16_t packedConfig = PackConfig( aConfig ) | 0x8000;  // 0x80 just set reset bit
 
-    std::uint16_t chaeckVendorId = 0;
-    if ( ReadRegister( 0xFF, chaeckVendorId ) < sizeof( chaeckVendorId ) )
+    std::uint16_t checkVendorId = 0;
+    if ( ReadRegister( KDieId, checkVendorId ) < sizeof( checkVendorId ) )
     {
-        // Unable to comunicate
+        // Unable to communicate
         iErrorCode = KGenericError;
         return false;
     }
 
-    if ( chaeckVendorId != SIGNATURE )
+    if ( checkVendorId != SIGNATURE )
     {
         // Invalid device vendor
         iErrorCode = KGenericError;
         return false;
     }
 
-    // Switch device to measurement mode (reset when connect, continous mode, max average) to modify
-    // this in next version
-    if ( WriteRegister( REG_RESET, KResetCmd ) != sizeof( KResetCmd ) )
+    // Switch device to measurement mode (reset when connect, continuous mode, max average) to
+    // modify this in next version
+    if ( WriteRegister( KRegConfig, packedConfig ) != sizeof( packedConfig ) )
     {
         // Unable to reset the device
         iErrorCode = KGenericError;
@@ -132,6 +176,32 @@ CIina3221::Init( )
     }
 
     iErrorCode = KOk;
+    return true;
+}
+
+bool
+CIina3221::SetConfig( const CConfig& aConfig )
+{
+    const std::uint16_t packedConfig = PackConfig( aConfig );
+    if ( WriteRegister( KRegConfig, packedConfig ) != sizeof( packedConfig ) )
+    {
+        // Unable to reset the device
+        iErrorCode = KGenericError;
+        return false;
+    }
+    return true;
+}
+bool
+CIina3221::GetConfig( CConfig& aConfig )
+{
+    std::uint16_t packedConfig = 0x0000;
+    if ( ReadRegister( KRegConfig, packedConfig ) != sizeof( packedConfig ) )
+    {
+        // Unable to reset the device
+        iErrorCode = KGenericError;
+        return false;
+    }
+    UnpackConfig( aConfig, packedConfig );
     return true;
 }
 

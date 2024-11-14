@@ -6,10 +6,10 @@ namespace ExternalDevice
 constexpr int KGenericError = -1;
 constexpr int KOk = 0;
 
-class IAbstarctI2CBus
+class IAbstractI2CBus
 {
 public:
-    virtual ~IAbstarctI2CBus( ) = default;
+    virtual ~IAbstractI2CBus( ) = default;
 
     /**
      * @brief Attempt to write specified number of bytes to address, blocking
@@ -19,7 +19,7 @@ public:
      * @param aLen Length of data in bytes to send
      * @param aNoStop If true, master retains control of the bus at the end of the transfer (no Stop
      * is issued), and the next transfer will begin with a Restart rather than a Start.
-     * @return int Number of bytes written, or IAbstarctI2CBus::KGenericError if address not
+     * @return int Number of bytes written, or IAbstractI2CBus::KGenericError if address not
      * acknowledged, no device present.
      */
     virtual int Write( std::uint8_t aDeviceAddress,
@@ -36,7 +36,7 @@ public:
      * @param aLen Length of data in bytes to receive
      * @param aNoStop If true, master retains control of the bus at the end of the transfer (no Stop
      * is issued), and the next transfer will begin with a Restart rather than a Start.
-     * @return Number of bytes read, or IAbstarctI2CBus::KGenericError if address not acknowledged
+     * @return Number of bytes read, or IAbstractI2CBus::KGenericError if address not acknowledged
      * or no device present.
      */
     virtual int Read( std::uint8_t aDeviceAddress, std::uint8_t* aDst, size_t aLen, bool aNoStop )
@@ -95,14 +95,64 @@ public:
     static constexpr std::uint8_t KHannel2 = 0x02;
     static constexpr std::uint8_t KHannel3 = 0x03;
 
-    struct Configuration
+    enum class OperationMode : std::uint8_t
     {
+        PowerDown = 0x0,                     // Power-down
+        ShuntVoltageSingleShot = 0x1,        // Shunt voltage, single-shot (triggered)
+        BusVoltageSingleShot = 0x2,          // Bus voltage, single-shot (triggered)
+        ShuntAndBusVoltageSingleShot = 0x3,  // Shunt and bus voltage, single-shot (triggered)
+        PowerDown2 = 0x4,                    // Power-down ?
+        ShuntVoltageContinuous = 0x5,        // Shunt voltage, continuous
+        BusVoltageContinuous = 0x6,          // Bus voltage, continuous
+        ShuntAndBusVoltageContinuous = 0x7,  // Shunt and bus voltage, continuous (default)
     };
 
-    CIina3221( IAbstarctI2CBus& aI2CBus, std::uint8_t aDeviceAddress = KDefaultAddress );
+    enum class ConversionTime : std::uint8_t
+    {
+        t140us = 0x0,   // 140µs
+        t204us = 0x1,   // 204µs
+        t332us = 0x2,   // 322µs
+        t588us = 0x3,   // 588µs
+        t1100us = 0x4,  // 1100µs (default)
+        t2116us = 0x5,  // 2116µs
+        t4156us = 0x6,  // 4156µs
+        t8244us = 0x7,  // 8244µs
+    };
+
+    enum class AveragingMode : std::uint8_t
+    {
+        avg1 = 0x0,     // Average 1 sample (default)
+        avg4 = 0x1,     // Average 4 samples
+        avg16 = 0x2,    // Average 16 samples
+        avg64 = 0x3,    // Average 64 samples
+        avg128 = 0x4,   // Average 128 samples
+        avg256 = 0x5,   // Average 256 samples
+        avg512 = 0x6,   // Average 512 samples
+        avg1024 = 0x7,  // Average 1024 samples
+    };
+
+    struct CConfig
+    {
+        CConfig( ){ };
+        OperationMode iOperationMode = OperationMode::ShuntAndBusVoltageContinuous;
+        ConversionTime iShuntVoltageConversionTime = ConversionTime::t1100us;
+        ConversionTime iBusVoltageConversionTime = ConversionTime::t1100us;
+        AveragingMode iAveragingMode = AveragingMode::avg1;
+
+        bool iChannel3Enable = true;
+        bool iChannel2Enable = true;
+        bool iChannel1Enable = true;
+
+        bool iRstart = false;
+    };
+
+    CIina3221( IAbstractI2CBus& aI2CBus, std::uint8_t aDeviceAddress = KDefaultAddress );
     ~CIina3221( ) = default;
 
-    bool Init( );
+    bool Init( const CConfig& aConfig = CConfig( ) );
+
+    bool SetConfig( const CConfig& aConfig );
+    bool GetConfig( CConfig& aConfig );
 
     float BusVoltageV( std::uint8_t aChannel = KHannel1 );
     float ShuntVoltageV( std::uint8_t aChannel = KHannel1 );
@@ -113,9 +163,15 @@ public:
         return iErrorCode;
     }
 
+    void
+    ResetErrorCode( )
+    {
+        iErrorCode = KOk;
+    }
+
 private:
     /* data */
-    IAbstarctI2CBus& iI2CBus;
+    IAbstractI2CBus& iI2CBus;
     const std::uint8_t iDeviceAddress;
     int iErrorCode = KOk;
 
