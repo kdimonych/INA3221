@@ -22,7 +22,7 @@ public:
      * @return int Number of bytes written, or IAbstarctI2CBus::KGenericError if address not
      * acknowledged, no device present.
      */
-    virtual int write( std::uint8_t aDeviceAddress,
+    virtual int Write( std::uint8_t aDeviceAddress,
                        const std::uint8_t* aSrc,
                        size_t aLen,
                        bool aNoStop )
@@ -39,35 +39,35 @@ public:
      * @return Number of bytes read, or IAbstarctI2CBus::KGenericError if address not acknowledged
      * or no device present.
      */
-    virtual int read( std::uint8_t aDeviceAddress, std::uint8_t* aDst, size_t aLen, bool aNoStop )
+    virtual int Read( std::uint8_t aDeviceAddress, std::uint8_t* aDst, size_t aLen, bool aNoStop )
         = 0;
 
     template < typename TRegister >
     inline int
-    readLastRegisterRaw( std::uint8_t aDeviceAddress, TRegister& aRegisterValue )
+    ReadLastRegisterRaw( std::uint8_t aDeviceAddress, TRegister& aRegisterValue )
     {
-        return read( aDeviceAddress, reinterpret_cast< std::uint8_t* >( &aRegisterValue ),
+        return Read( aDeviceAddress, reinterpret_cast< std::uint8_t* >( &aRegisterValue ),
                      sizeof( aRegisterValue ), false );
     }
 
     template < typename TRegisterAddress, typename TRegister >
     int
-    readRegisterRaw( std::uint8_t aDeviceAddress,
+    ReadRegisterRaw( std::uint8_t aDeviceAddress,
                      TRegisterAddress aRegisterAddress,
                      TRegister& aRegisterValue )
     {
-        int count = write( aDeviceAddress, &aRegisterAddress, sizeof( aRegisterAddress ), true );
+        int count = Write( aDeviceAddress, &aRegisterAddress, sizeof( aRegisterAddress ), true );
         if ( count < sizeof( aRegisterAddress ) )
         {
             return count;
         }
 
-        return readLastRegisterRaw( aDeviceAddress, aRegisterValue );
+        return ReadLastRegisterRaw( aDeviceAddress, aRegisterValue );
     }
 
     template < typename TRegisterAddress, typename RegisterType >
     int
-    writeRegisterRaw( std::uint8_t aDeviceAddress,
+    WriteRegisterRaw( std::uint8_t aDeviceAddress,
                       TRegisterAddress aRegisterAddress,
                       RegisterType aRegisterValue )
     {
@@ -78,7 +78,7 @@ public:
         };
 
         RawDataPack dataPack{ aRegisterAddress, aRegisterValue };
-        return write( aDeviceAddress, reinterpret_cast< const std::uint8_t* >( &dataPack ),
+        return Write( aDeviceAddress, reinterpret_cast< const std::uint8_t* >( &dataPack ),
                       sizeof( dataPack ), false );
     }
 };
@@ -102,13 +102,13 @@ public:
     CIina3221( IAbstarctI2CBus& aI2CBus, std::uint8_t aDeviceAddress = KDefaultAddress );
     ~CIina3221( ) = default;
 
-    bool init( );
+    bool Init( );
 
-    float busVoltageV( std::uint8_t aChannel = KHannel1 );
-    float shuntVoltageV( std::uint8_t aChannel = KHannel1 );
+    float BusVoltageV( std::uint8_t aChannel = KHannel1 );
+    float ShuntVoltageV( std::uint8_t aChannel = KHannel1 );
 
     int
-    errorCode( ) const
+    ErrorCode( ) const
     {
         return iErrorCode;
     }
@@ -119,13 +119,13 @@ private:
     const std::uint8_t iDeviceAddress;
     int iErrorCode = KOk;
 
-    float busRegisterToVoltage( std::uint16_t aVoltageRegister );
-    float shuntRegisterToVoltage( std::uint16_t aShuntVoltageRegister );
+    float BusRegisterToVoltage( std::uint16_t aVoltageRegister );
+    float ShuntRegisterToVoltage( std::uint16_t aShuntVoltageRegister );
 
     template < typename RegisterType >
-    int readRegister( std::uint8_t aReg, RegisterType& registerValue );
+    int ReadRegister( std::uint8_t aReg, RegisterType& registerValue );
     template < typename RegisterType >
-    int writeRegister( std::uint8_t aReg, RegisterType registerValue );
+    int WriteRegister( std::uint8_t aReg, RegisterType registerValue );
 };
 
 }  // namespace ExternalDevice
