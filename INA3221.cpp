@@ -124,35 +124,30 @@ CIina3221::ShuntRegisterToVoltage( std::uint16_t aShuntVoltageRegister )
 }
 
 template < typename RegisterType >
-int
+bool
 CIina3221::ReadRegister( std::uint8_t aRegisterAddress, RegisterType& aRegisterValue )
 {
-    int count = iI2CBus.ReadRegisterRaw( iDeviceAddress, aRegisterAddress, aRegisterValue );
-    if ( count < sizeof( aRegisterValue ) )
+    if ( iI2CBus.ReadRegisterRaw( iDeviceAddress, aRegisterAddress, aRegisterValue ) )
     {
-        return count;
+        aRegisterValue = ChangeEndian( aRegisterValue );
+        return true;
     }
-
-    aRegisterValue = ChangeEndian( aRegisterValue );
-    return count;
+    return false;
 }
 
 template < typename RegisterType >
-int
+bool
 CIina3221::WriteRegister( std::uint8_t aRegisterAddress, RegisterType aRegisterValue )
 {
     aRegisterValue = ChangeEndian( aRegisterValue );
-
-    return iI2CBus.WriteRegisterRaw( iDeviceAddress, &aRegisterAddress, aRegisterValue );
+    return iI2CBus.WriteRegisterRaw( iDeviceAddress, aRegisterAddress, aRegisterValue );
 }
 
 bool
 CIina3221::Init( const CConfig& aConfig )
 {
-    const std::uint16_t packedConfig = PackConfig( aConfig ) | 0x8000;  // 0x80 just set reset bit
-
     std::uint16_t checkVendorId = 0;
-    if ( ReadRegister( KDieId, checkVendorId ) < sizeof( checkVendorId ) )
+    if ( !ReadRegister( KDieId, checkVendorId ) )
     {
         // Unable to communicate
         iErrorCode = KGenericError;
@@ -166,9 +161,9 @@ CIina3221::Init( const CConfig& aConfig )
         return false;
     }
 
-    // Switch device to measurement mode (reset when connect, continuous mode, max average) to
-    // modify this in next version
-    if ( WriteRegister( KRegConfig, packedConfig ) != sizeof( packedConfig ) )
+    const std::uint16_t packedConfig
+        = PackConfig( aConfig );  // | 0x8000;  // 0x80 just set reset bit
+    if ( !WriteRegister( KRegConfig, packedConfig ) )
     {
         // Unable to reset the device
         iErrorCode = KGenericError;
@@ -182,33 +177,30 @@ CIina3221::Init( const CConfig& aConfig )
 bool
 CIina3221::SetConfig( const CConfig& aConfig )
 {
-    const std::uint16_t packedConfig = PackConfig( aConfig );
-    if ( WriteRegister( KRegConfig, packedConfig ) != sizeof( packedConfig ) )
-    {
-        // Unable to reset the device
-        iErrorCode = KGenericError;
-        return false;
-    }
-    return true;
+    const std::uint16_t packedConfig = PackConfig( aConfig ) & 0xFF7F;
+    auto result = WriteRegister( KRegConfig, packedConfig );
+    iErrorCode = result ? KGenericError : KOk;
+    return result;
 }
 bool
 CIina3221::GetConfig( CConfig& aConfig )
 {
     std::uint16_t packedConfig = 0x0000;
-    if ( ReadRegister( KRegConfig, packedConfig ) != sizeof( packedConfig ) )
+    if ( ReadRegister( KRegConfig, packedConfig ) )
     {
-        // Unable to reset the device
-        iErrorCode = KGenericError;
-        return false;
+        UnpackConfig( aConfig, packedConfig );
+        return true;
     }
-    UnpackConfig( aConfig, packedConfig );
-    return true;
+
+    // Unable to reset the device
+    iErrorCode = KGenericError;
+    return false;
 }
 
 float
 CIina3221::BusVoltageV( std::uint8_t aChannel )
 {
-    constexpr std::uint8_t KShuntBusRegOffset = 0x02;
+    constexpr std::uint8_t KOffset = 0x02;
     if ( aChannel > 3 )
     {
         iErrorCode = KGenericError;
@@ -216,14 +208,14 @@ CIina3221::BusVoltageV( std::uint8_t aChannel )
     }
 
     std::uint16_t voltage = 0;
-    ReadRegister( KShuntBusRegOffset + ( 2 * ( aChannel - 1 ) ), voltage );
+    ReadRegister( KOffset + ( 2 * ( aChannel - 1 ) ), voltage );
     return BusRegisterToVoltage( voltage );
 }
 
 float
 CIina3221::ShuntVoltageV( std::uint8_t aChannel )
 {
-    constexpr std::uint8_t KShuntRegOffset = 0x01;
+    constexpr std::uint8_t KOffset = 0x01;
     if ( aChannel > 3 )
     {
         iErrorCode = KGenericError;
@@ -231,7 +223,30 @@ CIina3221::ShuntVoltageV( std::uint8_t aChannel )
     }
 
     std::uint16_t shuntRegister = 0;
-    ReadRegister( KShuntRegOffset + ( 2 * ( aChannel - 1 ) ), shuntRegister );
+    ReadRegister( KOffset + ( 2 * ( aChannel - 1 ) ), shuntRegister );
     return ShuntRegisterToVoltage( shuntRegister );
+}
+
+bool
+CIina3221::SetCriticalAlertLimit( std::uint16_t aLimit, std::uint8_t aChannel )
+{
+    constexpr std::uint8_t KOffset = 0x07;
+    if ( aChannel > 3 )
+    {
+        iErrorCode = KGenericError;
+        return false;
+    }
+    return WriteRegister( KOffset + ( 2 * ( aChannel - 1 ) ), aLimit );
+}
+bool
+CIina3221::GetCriticalAlertLimit( std::uint16_t& aLimit, std::uint8_t aChannel )
+{
+    constexpr std::uint8_t KOffset = 0x07;
+    if ( aChannel > 3 )
+    {
+        iErrorCode = KGenericError;
+        return false;
+    }
+    return ReadRegister( KOffset + ( 2 * ( aChannel - 1 ) ), aLimit );
 }
 }  // namespace ExternalDevice
