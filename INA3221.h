@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cstdint>
+#include <cstring>
 
 namespace ExternalDevice
 {
@@ -43,43 +44,38 @@ public:
         = 0;
 
     template < typename TRegister >
-    inline int
+    inline bool
     ReadLastRegisterRaw( std::uint8_t aDeviceAddress, TRegister& aRegisterValue )
     {
         return Read( aDeviceAddress, reinterpret_cast< std::uint8_t* >( &aRegisterValue ),
-                     sizeof( aRegisterValue ), false );
+                     sizeof( aRegisterValue ), false )
+               != sizeof( aRegisterValue );
     }
 
     template < typename TRegisterAddress, typename TRegister >
-    int
+    bool
     ReadRegisterRaw( std::uint8_t aDeviceAddress,
                      TRegisterAddress aRegisterAddress,
                      TRegister& aRegisterValue )
     {
-        int count = Write( aDeviceAddress, &aRegisterAddress, sizeof( aRegisterAddress ), true );
-        if ( count < sizeof( aRegisterAddress ) )
-        {
-            return count;
-        }
-
-        return ReadLastRegisterRaw( aDeviceAddress, aRegisterValue );
+        return ( Write( aDeviceAddress, &aRegisterAddress, sizeof( aRegisterAddress ), true )
+                 == sizeof( aRegisterAddress ) )
+               && ( ReadLastRegisterRaw( aDeviceAddress, aRegisterValue )
+                    != sizeof( aRegisterValue ) );
     }
 
     template < typename TRegisterAddress, typename RegisterType >
-    int
+    bool
     WriteRegisterRaw( std::uint8_t aDeviceAddress,
                       TRegisterAddress aRegisterAddress,
                       RegisterType aRegisterValue )
     {
-        struct alignas( TRegisterAddress ) RawDataPack
-        {
-            TRegisterAddress iRegisterAddress;
-            RegisterType iRegisterValue;
-        };
+        std::uint8_t dataPack[ sizeof( aRegisterAddress ) + sizeof( aRegisterValue ) ];
+        std::memcpy( dataPack, &aRegisterAddress, sizeof( aRegisterAddress ) );
+        std::memcpy( dataPack + sizeof( aRegisterAddress ), &aRegisterValue,
+                     sizeof( aRegisterValue ) );
 
-        RawDataPack dataPack{ aRegisterAddress, aRegisterValue };
-        return Write( aDeviceAddress, reinterpret_cast< const std::uint8_t* >( &dataPack ),
-                      sizeof( dataPack ), false );
+        return Write( aDeviceAddress, dataPack, sizeof( dataPack ), false ) != sizeof( dataPack );
     }
 };
 
@@ -91,7 +87,7 @@ public:
     static constexpr std::uint8_t KSDAAddress = 0x42;      // A0 pulled to SDA
     static constexpr std::uint8_t KSCLAddress = 0x43;      // A0 pulled to SCL
 
-    static constexpr std::uint8_t KHannel1 = 0x01;
+    static constexpr std::uint8_t KChannel1 = 0x01;
     static constexpr std::uint8_t KHannel2 = 0x02;
     static constexpr std::uint8_t KHannel3 = 0x03;
 
@@ -149,13 +145,16 @@ public:
     CIina3221( IAbstractI2CBus& aI2CBus, std::uint8_t aDeviceAddress = KDefaultAddress );
     ~CIina3221( ) = default;
 
-    bool Init( const CConfig& aConfig = CConfig( ) );
+    bool Init( const CConfig& aConfig = { } );
 
     bool SetConfig( const CConfig& aConfig );
     bool GetConfig( CConfig& aConfig );
 
-    float BusVoltageV( std::uint8_t aChannel = KHannel1 );
-    float ShuntVoltageV( std::uint8_t aChannel = KHannel1 );
+    bool SetCriticalAlertLimit( std::uint16_t aLimit, std::uint8_t aChannel = KChannel1 );
+    bool GetCriticalAlertLimit( std::uint16_t& aLimit, std::uint8_t aChannel = KChannel1 );
+
+    float BusVoltageV( std::uint8_t aChannel = KChannel1 );
+    float ShuntVoltageV( std::uint8_t aChannel = KChannel1 );
 
     int
     ErrorCode( ) const
@@ -174,14 +173,15 @@ private:
     IAbstractI2CBus& iI2CBus;
     const std::uint8_t iDeviceAddress;
     int iErrorCode = KOk;
+    std::uint8_t iLastRegisterAddress = 0x00;
 
     float BusRegisterToVoltage( std::uint16_t aVoltageRegister );
     float ShuntRegisterToVoltage( std::uint16_t aShuntVoltageRegister );
 
     template < typename RegisterType >
-    int ReadRegister( std::uint8_t aReg, RegisterType& registerValue );
+    bool ReadRegister( std::uint8_t aReg, RegisterType& registerValue );
     template < typename RegisterType >
-    int WriteRegister( std::uint8_t aReg, RegisterType registerValue );
+    bool WriteRegister( std::uint8_t aReg, RegisterType registerValue );
 };
 
 }  // namespace ExternalDevice
