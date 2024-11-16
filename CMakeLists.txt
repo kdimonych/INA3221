@@ -5,6 +5,15 @@ project(ina3221 VERSION 0.1.0 LANGUAGES CXX C)
 # Add library cpp files
 add_library(ina3221 INTERFACE) 
 
+# Enable or disable exceptions based on the platform or configuration
+option(USE_EXCEPTIONS "Enable exceptions" ON)
+
+if(USE_EXCEPTIONS)
+    target_compile_definitions(ina3221 INTERFACE __EXCEPTIONS)
+else()
+    target_compile_definitions(ina3221 INTERFACE -fno-exceptions)
+endif()
+
 set(HEADER_LIST
     INA3221.h )
 

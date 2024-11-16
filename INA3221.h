@@ -1,11 +1,15 @@
-#include <algorithm>
 #include <cstdint>
 #include <cstring>
 
+#ifdef __EXCEPTIONS
+#define NOEXCEPT noexcept
+#include <exception>
+#else
+#define NOEXCEPT
+#endif
+
 namespace ExternalDevice
 {
-constexpr int KGenericError = -1;
-constexpr int KOk = 0;
 
 class IAbstractI2CBus
 {
@@ -26,8 +30,7 @@ public:
     virtual int Write( std::uint8_t aDeviceAddress,
                        const std::uint8_t* aSrc,
                        size_t aLen,
-                       bool aNoStop )
-        = 0;
+                       bool aNoStop ) NOEXCEPT = 0;
 
     /**
      * @brief Attempt to read specified number of bytes from address, blocking
@@ -40,23 +43,25 @@ public:
      * @return Number of bytes read, or IAbstractI2CBus::KGenericError if address not acknowledged
      * or no device present.
      */
-    virtual int Read( std::uint8_t aDeviceAddress, std::uint8_t* aDst, size_t aLen, bool aNoStop )
-        = 0;
+    virtual int Read( std::uint8_t aDeviceAddress,
+                      std::uint8_t* aDst,
+                      size_t aLen,
+                      bool aNoStop ) NOEXCEPT = 0;
 
-    template < typename TRegister >
+    template < typename taTRegister >
     inline bool
-    ReadLastRegisterRaw( std::uint8_t aDeviceAddress, TRegister& aRegisterValue )
+    ReadLastRegisterRaw( std::uint8_t aDeviceAddress, taTRegister& aRegisterValue ) NOEXCEPT
     {
         return Read( aDeviceAddress, reinterpret_cast< std::uint8_t* >( &aRegisterValue ),
                      sizeof( aRegisterValue ), false )
                != sizeof( aRegisterValue );
     }
 
-    template < typename TRegisterAddress, typename TRegister >
+    template < typename taTRegisterAddress, typename taTRegister >
     bool
     ReadRegisterRaw( std::uint8_t aDeviceAddress,
-                     TRegisterAddress aRegisterAddress,
-                     TRegister& aRegisterValue )
+                     taTRegisterAddress aRegisterAddress,
+                     taTRegister& aRegisterValue ) NOEXCEPT
     {
         return ( Write( aDeviceAddress, &aRegisterAddress, sizeof( aRegisterAddress ), true )
                  == sizeof( aRegisterAddress ) )
@@ -64,11 +69,11 @@ public:
                     != sizeof( aRegisterValue ) );
     }
 
-    template < typename TRegisterAddress, typename RegisterType >
+    template < typename taTRegisterAddress, typename taTRegister >
     bool
     WriteRegisterRaw( std::uint8_t aDeviceAddress,
-                      TRegisterAddress aRegisterAddress,
-                      RegisterType aRegisterValue )
+                      taTRegisterAddress aRegisterAddress,
+                      taTRegister aRegisterValue ) NOEXCEPT
     {
         std::uint8_t dataPack[ sizeof( aRegisterAddress ) + sizeof( aRegisterValue ) ];
         std::memcpy( dataPack, &aRegisterAddress, sizeof( aRegisterAddress ) );
@@ -82,14 +87,45 @@ public:
 class CIina3221
 {
 public:
+    static constexpr int KOk = 0;
+    static constexpr int KGenericError = -1;
+    static constexpr int KInvalidArgumentError = -2;
+    static constexpr int KInvalidVendor = -3;
+
+#ifdef __EXCEPTIONS
+    template < int taError, const char* const taDescription >
+    class EBase : public std::exception
+    {
+    public:
+        constexpr int
+        error( ) const NOEXCEPT
+        {
+            return taError;
+        }
+
+        const char*
+        what( ) const NOEXCEPT override
+        {
+            return taDescription;
+        }
+    };
+    static constexpr char KGenericErrorDescription[] = "Internal error";
+    static constexpr char KInvalidArgumentDescription[] = "Invalid argument";
+    static constexpr char KInvalidVendorDescription[] = "Invalid vendor";
+    using EGenericError = EBase< KGenericError, KGenericErrorDescription >;
+    using EInvalidArgumentError = EBase< KInvalidArgumentError, KInvalidArgumentDescription >;
+    using EInvalidVendorError = EBase< KInvalidVendor, KInvalidVendorDescription >;
+
+#endif
+
     static constexpr std::uint8_t KDefaultAddress = 0x40;  // A0 pulled to GND
     static constexpr std::uint8_t KVSAddress = 0x41;       // A0 pulled to VS
     static constexpr std::uint8_t KSDAAddress = 0x42;      // A0 pulled to SDA
     static constexpr std::uint8_t KSCLAddress = 0x43;      // A0 pulled to SCL
 
     static constexpr std::uint8_t KChannel1 = 0x01;
-    static constexpr std::uint8_t KHannel2 = 0x02;
-    static constexpr std::uint8_t KHannel3 = 0x03;
+    static constexpr std::uint8_t KChannel2 = 0x02;
+    static constexpr std::uint8_t KChannel3 = 0x03;
 
     enum class OperationMode : std::uint8_t
     {
@@ -142,46 +178,88 @@ public:
         bool iRstart = false;
     };
 
-    CIina3221( IAbstractI2CBus& aI2CBus, std::uint8_t aDeviceAddress = KDefaultAddress );
+    CIina3221( IAbstractI2CBus& aI2CBus, std::uint8_t aDeviceAddress = KDefaultAddress ) NOEXCEPT;
     ~CIina3221( ) = default;
 
-    bool Init( const CConfig& aConfig = { } );
+    int Init( const CConfig& aConfig = { } ) NOEXCEPT;
 
-    bool SetConfig( const CConfig& aConfig );
-    bool GetConfig( CConfig& aConfig );
+    int SetConfig( const CConfig& aConfig ) NOEXCEPT;
+    int GetConfig( CConfig& aConfig ) NOEXCEPT;
 
-    bool SetCriticalAlertLimit( std::uint16_t aLimit, std::uint8_t aChannel = KChannel1 );
-    bool GetCriticalAlertLimit( std::uint16_t& aLimit, std::uint8_t aChannel = KChannel1 );
+    int BusVoltageV( float& aVoltage, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
+    int ShuntVoltageV( float& aVoltage, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
 
-    float BusVoltageV( std::uint8_t aChannel = KChannel1 );
-    float ShuntVoltageV( std::uint8_t aChannel = KChannel1 );
+    int GetCriticalAlertLimit( std::uint16_t& aLimit, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
+    int SetCriticalAlertLimit( std::uint16_t aLimit, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
 
-    int
-    ErrorCode( ) const
+#ifdef __EXCEPTIONS
+    inline float
+    BusVoltageV( std::uint8_t aChannel = KChannel1 )
     {
-        return iErrorCode;
+        float voltage = 0.0;
+        ThrowOnError( BusVoltageV( voltage, aChannel ) );
+        return voltage;
     }
 
-    void
-    ResetErrorCode( )
+    inline float
+    ShuntVoltageV( std::uint8_t aChannel = KChannel1 )
     {
-        iErrorCode = KOk;
+        float voltage = 0.0;
+        ThrowOnError( BusVoltageV( voltage, aChannel ) );
+        return voltage;
     }
+#endif
 
 private:
     /* data */
     IAbstractI2CBus& iI2CBus;
     const std::uint8_t iDeviceAddress;
-    int iErrorCode = KOk;
     std::uint8_t iLastRegisterAddress = 0x00;
 
-    float BusRegisterToVoltage( std::uint16_t aVoltageRegister );
-    float ShuntRegisterToVoltage( std::uint16_t aShuntVoltageRegister );
+    float BusRegisterToVoltage( std::uint16_t aVoltageRegister ) NOEXCEPT;
+    std::uint16_t VoltageToBusRegister( float aVoltageRegister ) NOEXCEPT;
+    float ShuntRegisterToVoltage( std::uint16_t aShuntVoltageRegister ) NOEXCEPT;
+    std::uint16_t ShuntVoltageToRegister( float aShuntVoltage ) NOEXCEPT;
 
-    template < typename RegisterType >
-    bool ReadRegister( std::uint8_t aReg, RegisterType& registerValue );
-    template < typename RegisterType >
-    bool WriteRegister( std::uint8_t aReg, RegisterType registerValue );
+    template < typename taRegisterType >
+    int ReadRegister( std::uint8_t aReg, taRegisterType& aRegisterValue ) NOEXCEPT;
+    template < typename taRegisterType >
+    int WriteRegister( std::uint8_t aReg, taRegisterType aRegisterValue ) NOEXCEPT;
+
+    template < std::uint8_t taMultiRegisterOffset, std::uint8_t taMultiRegisterPeriod >
+    inline int GetVoltageRegister( std::uint16_t& aVoltageRegister,
+                                   std::uint8_t aChannel ) NOEXCEPT;
+    template < std::uint8_t taMultiRegisterOffset, std::uint8_t taMultiRegisterPeriod >
+    inline int SetVoltageRegister( std::uint16_t aVoltageRegister, std::uint8_t aChannel ) NOEXCEPT;
+
+    template < std::uint8_t taMultiRegisterOffset, std::uint8_t taMultiRegisterPeriod >
+    inline int GetVoltageRegister( float& aVoltage, std::uint8_t aChannel ) NOEXCEPT;
+    template < std::uint8_t taMultiRegisterOffset, std::uint8_t taMultiRegisterPeriod >
+    inline int SetVoltageRegister( float aVoltage, std::uint8_t aChannel ) NOEXCEPT;
+
+#ifdef __EXCEPTIONS
+    static inline int
+    ThrowOnError( int aErrorCode )
+    {
+        switch ( aErrorCode )
+        {
+        case KOk:
+            return aErrorCode;
+            break;
+        case KInvalidArgumentError:
+            throw EInvalidArgumentError{ };
+            break;
+        case KInvalidVendor:
+            throw EInvalidVendorError{ };
+            break;
+        case KGenericError:
+        default:
+            throw EGenericError{ };
+            break;
+        }
+        return aErrorCode;
+    }
+#endif
 };
 
 }  // namespace ExternalDevice
