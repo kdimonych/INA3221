@@ -14,12 +14,14 @@ namespace ExternalDevice
 namespace
 {
 
-constexpr std::uint32_t KFullScaleRegisterValue = 0x0FFF;
-constexpr float KMaxVoltage = 32.76f;        // 0xFFF = 32.76V
+constexpr std::int32_t KFullScaleRegisterValue = 0x0FFF;
+constexpr float KMaxBusVoltage = 32.76f;     // 0xFFF = 32.76V
 constexpr float KMaxShuntVoltage = 0.1638f;  // 0xFFF = 0.1638V
 
 static constexpr std::uint8_t KRegConfig = 0x00;
 static constexpr std::uint8_t KDieId = 0xFF;
+
+constexpr std::uint8_t KChannelNumber = 3;  // 0xFFF = 0.1638V
 
 template < class taValue, class taCompare = std::less< taValue > >
 constexpr const taValue&
@@ -29,28 +31,28 @@ Clamp( const taValue& aValue, const taValue& aLo, const taValue& aHi, taCompare 
 }
 
 inline std::uint16_t
-ToTwosComplement( std::uint16_t aValue )
+ToTwosComplement( std::int16_t aValue ) NOEXCEPT
 {
-    if ( aValue >= 0x8000 )
+    if ( aValue < 0 )
     {
-        return 0x8000 | ( ( -aValue ) * 8 );
+        return 0x8000 | static_cast< std::uint16_t >( -aValue );
     }
 
-    return 0x7FF8 & aValue * 8;  // shift right for 3 bit
+    return static_cast< std::uint16_t >( aValue );
 }
 
-inline std::uint16_t
-FromTwosComplement( std::uint16_t aTwosComplementValue )
+inline std::int16_t
+FromTwosComplement( std::uint16_t aTwosComplementValue ) NOEXCEPT
 {
     if ( aTwosComplementValue >= 0x8000 )
     {
-        aTwosComplementValue = -( 0x7FF8 & aTwosComplementValue );
+        aTwosComplementValue = -static_cast< std::int16_t >( 0x7FFF & aTwosComplementValue );
     }
-    return aTwosComplementValue / 8;  // shift left for 3 bit
+    return aTwosComplementValue;
 }
 
 std::uint32_t
-ChangeEndian( std::uint32_t x )
+ChangeEndian( std::uint32_t x ) NOEXCEPT
 {
     auto ptr = reinterpret_cast< unsigned char* >( &x );
     std::swap( ptr[ 0 ], ptr[ 3 ] );
@@ -59,15 +61,40 @@ ChangeEndian( std::uint32_t x )
 }
 
 std::uint16_t
-ChangeEndian( std::uint16_t x )
+ChangeEndian( std::uint16_t x ) NOEXCEPT
 {
     auto ptr = reinterpret_cast< unsigned char* >( &x );
     std::swap( ptr[ 0 ], ptr[ 1 ] );
     return x;
 }
 
+template < std::uint8_t taDataLShift = 3 >
+float
+BusRegisterToVoltage( std::uint16_t aVoltageRegister, float aMaxAbsoluteVoltage ) NOEXCEPT
+{
+    constexpr uint16_t mask = 0xFFFF << taDataLShift;
+    constexpr uint16_t divider = 1 << taDataLShift;
+
+    const auto rawVoltage = FromTwosComplement( aVoltageRegister & mask ) / divider;
+    const float voltage = aMaxAbsoluteVoltage * rawVoltage / KFullScaleRegisterValue;
+    return voltage;
+}
+
+template < std::uint8_t taDataLShift = 3 >
 std::uint16_t
-PackConfig( const CIina3221::CConfig& aConfig )
+VoltageToBusRegister( float aVoltage, float aMaxAbsoluteVoltage ) NOEXCEPT
+{
+    constexpr uint16_t mask = 0xFFFF << taDataLShift;
+    constexpr uint16_t divider = 1 << taDataLShift;
+
+    aVoltage = Clamp( aVoltage, -aMaxAbsoluteVoltage, aMaxAbsoluteVoltage )
+               * KFullScaleRegisterValue / aMaxAbsoluteVoltage;
+    const auto rawVoltage = static_cast< std::int16_t >( aVoltage );
+    return ToTwosComplement( rawVoltage * divider ) & mask;
+}
+
+std::uint16_t
+PackConfig( const CIina3221::CConfig& aConfig ) NOEXCEPT
 {
     std::uint16_t result = 0x0000;
     result |= static_cast< std::uint16_t >( aConfig.iOperationMode );
@@ -80,16 +107,14 @@ PackConfig( const CIina3221::CConfig& aConfig )
     result |= static_cast< std::uint16_t >( aConfig.iRstart ) << 15;
 
     return result;
-    // return ChangeEndian( result );
 }
 
 void
-UnpackConfig( CIina3221::CConfig& aConfig, std::uint16_t aPackedConfig )
+UnpackConfig( CIina3221::CConfig& aConfig, std::uint16_t aPackedConfig ) NOEXCEPT
 {
-    // aPackedConfig = ChangeEndian( aPackedConfig );
     aConfig.iOperationMode = static_cast< CIina3221::OperationMode >( aPackedConfig & 0x7 );
     aConfig.iShuntVoltageConversionTime
-        = static_cast< CIina3221::ConversionTime >( ( aPackedConfig >> 3 ) & 0x7 );
+        = static_cast< CIina3221::ConversionTime >( ( aPackedConfig >> KChannelNumber ) & 0x7 );
     aConfig.iBusVoltageConversionTime
         = static_cast< CIina3221::ConversionTime >( ( aPackedConfig >> 6 ) & 0x7 );
     aConfig.iAveragingMode
@@ -100,8 +125,51 @@ UnpackConfig( CIina3221::CConfig& aConfig, std::uint16_t aPackedConfig )
     aConfig.iRstart = static_cast< bool >( ( aPackedConfig >> 15 ) & 0x1 );
 }
 
+std::uint16_t
+PackMaskEnable( const CIina3221::CMaskEnable& aMaskEnable ) NOEXCEPT
+{
+    std::uint16_t result = 0x0000;
+    result |= static_cast< std::uint16_t >( aMaskEnable.iCVRF );
+    result |= static_cast< std::uint16_t >( aMaskEnable.iTCF ) << 1;
+    result |= static_cast< std::uint16_t >( aMaskEnable.iPVF ) << 2;
+    result |= static_cast< std::uint16_t >( aMaskEnable.iWF3 ) << 3;
+    result |= static_cast< std::uint16_t >( aMaskEnable.iWF2 ) << 4;
+    result |= static_cast< std::uint16_t >( aMaskEnable.iWF1 ) << 5;
+    result |= static_cast< std::uint16_t >( aMaskEnable.iSF ) << 6;
+    result |= static_cast< std::uint16_t >( aMaskEnable.iCF3 ) << 7;
+    result |= static_cast< std::uint16_t >( aMaskEnable.iCF2 ) << 8;
+    result |= static_cast< std::uint16_t >( aMaskEnable.iCF1 ) << 9;
+    result |= static_cast< std::uint16_t >( aMaskEnable.iCEN ) << 10;
+    result |= static_cast< std::uint16_t >( aMaskEnable.iWEN ) << 11;
+    result |= static_cast< std::uint16_t >( aMaskEnable.iSSC3 ) << 12;
+    result |= static_cast< std::uint16_t >( aMaskEnable.iSSC2 ) << 13;
+    result |= static_cast< std::uint16_t >( aMaskEnable.iSSC1 ) << 14;
+
+    return result;
+}
+
+void
+UnpackMaskEnable( CIina3221::CMaskEnable& aMaskEnable, std::uint16_t aPackedMaskEnable ) NOEXCEPT
+{
+    aMaskEnable.iCVRF = static_cast< bool >( aPackedMaskEnable & 0x1 );
+    aMaskEnable.iTCF = static_cast< bool >( aPackedMaskEnable >> 1 & 0x1 );
+    aMaskEnable.iPVF = static_cast< bool >( aPackedMaskEnable >> 2 & 0x1 );
+    aMaskEnable.iWF3 = static_cast< bool >( aPackedMaskEnable >> 3 & 0x1 );
+    aMaskEnable.iWF2 = static_cast< bool >( aPackedMaskEnable >> 4 & 0x1 );
+    aMaskEnable.iWF1 = static_cast< bool >( aPackedMaskEnable >> 5 & 0x1 );
+    aMaskEnable.iSF = static_cast< bool >( aPackedMaskEnable >> 6 & 0x1 );
+    aMaskEnable.iCF3 = static_cast< bool >( aPackedMaskEnable >> 7 & 0x1 );
+    aMaskEnable.iCF2 = static_cast< bool >( aPackedMaskEnable >> 8 & 0x1 );
+    aMaskEnable.iCF1 = static_cast< bool >( aPackedMaskEnable >> 9 & 0x1 );
+    aMaskEnable.iCEN = static_cast< bool >( aPackedMaskEnable >> 10 & 0x1 );
+    aMaskEnable.iWEN = static_cast< bool >( aPackedMaskEnable >> 11 & 0x1 );
+    aMaskEnable.iSSC3 = static_cast< bool >( aPackedMaskEnable >> 12 & 0x1 );
+    aMaskEnable.iSSC2 = static_cast< bool >( aPackedMaskEnable >> 13 & 0x1 );
+    aMaskEnable.iSSC1 = static_cast< bool >( aPackedMaskEnable >> 14 & 0x1 );
+}
+
 inline CIina3221::CConfig
-UnpackConfig( std::uint16_t aPackedConfig )
+UnpackConfig( std::uint16_t aPackedConfig ) NOEXCEPT
 {
     CIina3221::CConfig config;
     UnpackConfig( config, aPackedConfig );
@@ -109,7 +177,9 @@ UnpackConfig( std::uint16_t aPackedConfig )
 }
 
 inline constexpr std::uint8_t
-MultiRegisterAddress( std::uint8_t aOffset, std::uint8_t aPeriod, std::uint8_t aRegisterNumber )
+MultiRegisterAddress( std::uint8_t aOffset,
+                      std::uint8_t aPeriod,
+                      std::uint8_t aRegisterNumber ) NOEXCEPT
 {
     return aOffset + ( aPeriod * ( aRegisterNumber - 1 ) );
 }
@@ -120,40 +190,6 @@ CIina3221::CIina3221( IAbstractI2CBus& aI2CBus, std::uint8_t aDeviceAddress ) NO
     : iI2CBus{ aI2CBus },
       iDeviceAddress{ aDeviceAddress }
 {
-}
-
-float
-CIina3221::BusRegisterToVoltage( std::uint16_t aVoltageRegister ) NOEXCEPT
-{
-    aVoltageRegister = FromTwosComplement( aVoltageRegister );
-    // 0xFFF = 32.76V
-    const float voltage = KMaxVoltage * aVoltageRegister / KFullScaleRegisterValue;
-    return voltage;
-}
-
-std::uint16_t
-CIina3221::VoltageToBusRegister( float aVoltage ) NOEXCEPT
-{
-    aVoltage = Clamp( aVoltage, 0.0f, KMaxVoltage ) * KFullScaleRegisterValue / KMaxVoltage;
-    const auto voltageRegister = static_cast< std::uint16_t >( aVoltage );
-    return ToTwosComplement( voltageRegister );
-}
-
-float
-CIina3221::ShuntRegisterToVoltage( std::uint16_t aShuntVoltageRegister ) NOEXCEPT
-{
-    aShuntVoltageRegister = FromTwosComplement( aShuntVoltageRegister );
-    const float shuntVoltage = KMaxShuntVoltage * aShuntVoltageRegister / KFullScaleRegisterValue;
-    return shuntVoltage;
-}
-
-std::uint16_t
-CIina3221::ShuntVoltageToRegister( float aShuntVoltage ) NOEXCEPT
-{
-    aShuntVoltage = Clamp( aShuntVoltage, 0.0f, KMaxShuntVoltage ) * KFullScaleRegisterValue
-                    / KMaxShuntVoltage;
-    const auto shuntVoltageRegister = static_cast< std::uint16_t >( aShuntVoltage );
-    return ToTwosComplement( shuntVoltageRegister );
 }
 
 template < typename taRegisterType >
@@ -222,96 +258,144 @@ CIina3221::Init( const CConfig& aConfig ) NOEXCEPT
 }
 
 int
-CIina3221::SetConfig( const CConfig& aConfig ) NOEXCEPT
-{
-    const std::uint16_t packedConfig = PackConfig( aConfig );
-    return WriteRegister( KRegConfig, packedConfig );
-}
-
-int
 CIina3221::GetConfig( CConfig& aConfig ) NOEXCEPT
 {
-    std::uint16_t packedConfig = 0x0000;
-    const auto result = ReadRegister( KRegConfig, packedConfig );
+    std::uint16_t packedConfigRegister = 0x0000;
+    const auto result = ReadRegister( KRegConfig, packedConfigRegister );
     if ( result == KOk )
     {
-        UnpackConfig( aConfig, packedConfig );
+        UnpackConfig( aConfig, packedConfigRegister );
     }
     return result;
 }
+
 int
-CIina3221::BusVoltageV( float& aVoltage, std::uint8_t aChannel ) NOEXCEPT
+CIina3221::SetConfig( const CConfig& aConfig ) NOEXCEPT
 {
-    constexpr std::uint8_t KOffset = 0x02;
-    constexpr std::uint8_t KPeriod = 2;
-
-    if ( aChannel > 3 )
-    {
-        return KInvalidArgumentError;
-    }
-
-    std::uint16_t voltageRegister = 0;
-    const auto result
-        = ReadRegister( MultiRegisterAddress( KOffset, KPeriod, aChannel ), voltageRegister );
-    if ( result == KOk )
-    {
-        aVoltage = BusRegisterToVoltage( voltageRegister );
-    }
-    return result;
+    const std::uint16_t packedConfigRegister = PackConfig( aConfig );
+    return WriteRegister( KRegConfig, packedConfigRegister );
 }
 
 int
 CIina3221::ShuntVoltageV( float& aVoltage, std::uint8_t aChannel ) NOEXCEPT
 {
-    constexpr std::uint8_t KOffset = 0x02;
-    constexpr std::uint8_t KPeriod = 2;
+    constexpr std::uint8_t KRegisterAddressOffset = 0x01;
+    constexpr std::uint8_t KRegisterPeriod = 2;
 
-    if ( aChannel > 3 )
-    {
-        return KInvalidArgumentError;
-    }
+    return GetVoltageRegister< KRegisterAddressOffset, KRegisterPeriod >(
+        aVoltage, KMaxShuntVoltage, aChannel );
+}
 
-    std::uint16_t shuntRegister = 0;
-    const auto result
-        = ReadRegister( MultiRegisterAddress( KOffset, KPeriod, aChannel ), shuntRegister );
-    if ( result == KOk )
+int
+CIina3221::BusVoltageV( float& aVoltage, std::uint8_t aChannel ) NOEXCEPT
+{
+    constexpr std::uint8_t KRegisterAddressOffset = 0x02;
+    constexpr std::uint8_t KRegisterPeriod = 2;
+
+    return GetVoltageRegister< KRegisterAddressOffset, KRegisterPeriod >( aVoltage, KMaxBusVoltage,
+                                                                          aChannel );
+}
+
+int
+CIina3221::GetShuntCriticalAlertLimit( float& aShuntLimit, std::uint8_t aChannel ) NOEXCEPT
+{
+    constexpr std::uint8_t KRegisterAddressOffset = 0x07;
+    constexpr std::uint8_t KRegisterPeriod = 2;
+
+    return GetVoltageRegister< KRegisterAddressOffset, KRegisterPeriod >(
+        aShuntLimit, KMaxShuntVoltage, aChannel );
+}
+
+int
+CIina3221::SetShuntCriticalAlertLimit( float aShuntLimit, std::uint8_t aChannel ) NOEXCEPT
+{
+    constexpr std::uint8_t KRegisterAddressOffset = 0x07;
+    constexpr std::uint8_t KRegisterPeriod = 2;
+
+    return SetVoltageRegister< KRegisterAddressOffset, KRegisterPeriod >(
+        aShuntLimit, KMaxShuntVoltage, aChannel );
+}
+
+int
+CIina3221::GetShuntWarningAlertLimit( float& aShuntLimit, std::uint8_t aChannel ) NOEXCEPT
+{
+    constexpr std::uint8_t KRegisterAddressOffset = 0x08;
+    constexpr std::uint8_t KRegisterPeriod = 2;
+
+    return GetVoltageRegister< KRegisterAddressOffset, KRegisterPeriod >(
+        aShuntLimit, KMaxShuntVoltage, aChannel );
+}
+
+int
+CIina3221::SetShuntWarningAlertLimit( float aShuntLimit, std::uint8_t aChannel ) NOEXCEPT
+{
+    constexpr std::uint8_t KRegisterAddressOffset = 0x08;
+    constexpr std::uint8_t KRegisterPeriod = 2;
+
+    return SetVoltageRegister< KRegisterAddressOffset, KRegisterPeriod >(
+        aShuntLimit, KMaxShuntVoltage, aChannel );
+}
+
+int
+CIina3221::GetShuntVoltageSum( float& aShuntSum ) NOEXCEPT
+{
+    constexpr std::uint8_t KRegisterAddress = 0x0D;
+    std::uint16_t voltageRegister;
+    const auto result = ReadRegister( KRegisterAddress, voltageRegister );
+    if ( result != KOk )
     {
-        aVoltage = ShuntRegisterToVoltage( shuntRegister );
+        aShuntSum = BusRegisterToVoltage< 2 >( voltageRegister, KMaxShuntVoltage );
     }
     return result;
 }
 
 int
-CIina3221::GetCriticalAlertLimit( std::uint16_t& aLimit, std::uint8_t aChannel ) NOEXCEPT
+CIina3221::GetShuntVoltageSumLimit( float& aShuntSumLimit ) NOEXCEPT
 {
-    constexpr std::uint8_t KOffset = 0x07;
-    constexpr std::uint8_t KPeriod = 2;
-
-    if ( aChannel > 3 )
+    constexpr std::uint8_t KRegisterAddress = 0x0E;
+    std::uint16_t voltageRegister = 0;
+    const auto result = ReadRegister( KRegisterAddress, voltageRegister );
+    if ( result == KOk )
     {
-        return KInvalidArgumentError;
+        aShuntSumLimit = BusRegisterToVoltage< 2 >( voltageRegister, KMaxShuntVoltage );
     }
-    return ReadRegister( MultiRegisterAddress( KOffset, KPeriod, aChannel ), aLimit );
+    return result;
 }
 
 int
-CIina3221::SetCriticalAlertLimit( std::uint16_t aLimit, std::uint8_t aChannel ) NOEXCEPT
+CIina3221::SetShuntVoltageSumLimit( float aShuntSumLimit ) NOEXCEPT
 {
-    constexpr std::uint8_t KOffset = 0x07;
-    constexpr std::uint8_t KPeriod = 2;
-
-    if ( aChannel > 3 )
-    {
-        return KInvalidArgumentError;
-    }
-    return WriteRegister( MultiRegisterAddress( KOffset, KPeriod, aChannel ), aLimit );
+    constexpr std::uint8_t KRegisterAddress = 0x0E;
+    const std::uint16_t voltageRegister
+        = VoltageToBusRegister< 2 >( aShuntSumLimit, KMaxShuntVoltage );
+    return WriteRegister( KRegisterAddress, voltageRegister );
 }
 
+int
+CIina3221::GetMaskEnable( CMaskEnable& aMaskEnable ) NOEXCEPT
+{
+    std::uint16_t maskEnableRegister = 0x0000;
+    const auto result = ReadRegister( KRegConfig, maskEnableRegister );
+    if ( result == KOk )
+    {
+        UnpackMaskEnable( aMaskEnable, maskEnableRegister );
+    }
+    return result;
+}
+
+int
+CIina3221::SetMaskEnable( const CMaskEnable& aMaskEnable ) NOEXCEPT
+{
+    const std::uint16_t maskEnableRegister = PackMaskEnable( aMaskEnable );
+    return WriteRegister( KRegConfig, maskEnableRegister );
+}
+
+/************************ Private part ************************/
 template < std::uint8_t taMultiRegisterOffset, std::uint8_t taMultiRegisterPeriod >
 int
 CIina3221::GetVoltageRegister( std::uint16_t& aVoltageRegister, std::uint8_t aChannel ) NOEXCEPT
 {
-    if ( aChannel > 3 )
+    if ( aChannel > KChannelNumber )
     {
         return KInvalidArgumentError;
     }
@@ -324,7 +408,7 @@ template < std::uint8_t taMultiRegisterOffset, std::uint8_t taMultiRegisterPerio
 int
 CIina3221::SetVoltageRegister( std::uint16_t aVoltageRegister, std::uint8_t aChannel ) NOEXCEPT
 {
-    if ( aChannel > 3 )
+    if ( aChannel > KChannelNumber )
     {
         return KInvalidArgumentError;
     }
@@ -334,9 +418,13 @@ CIina3221::SetVoltageRegister( std::uint16_t aVoltageRegister, std::uint8_t aCha
         aVoltageRegister );
 }
 
-template < std::uint8_t taMultiRegisterOffset, std::uint8_t taMultiRegisterPeriod >
+template < std::uint8_t taMultiRegisterOffset,
+           std::uint8_t taMultiRegisterPeriod,
+           std::uint8_t taDataLShift >
 int
-CIina3221::GetVoltageRegister( float& aVoltage, std::uint8_t aChannel ) NOEXCEPT
+CIina3221::GetVoltageRegister( float& aVoltage,
+                               float aMaxAbsoluteVoltage,
+                               std::uint8_t aChannel ) NOEXCEPT
 {
     std::uint16_t voltageRegister = 0;
     const auto result = GetVoltageRegister< taMultiRegisterOffset, taMultiRegisterPeriod >(
@@ -344,16 +432,21 @@ CIina3221::GetVoltageRegister( float& aVoltage, std::uint8_t aChannel ) NOEXCEPT
 
     if ( result == KOk )
     {
-        aVoltage = BusRegisterToVoltage( voltageRegister );
+        aVoltage = BusRegisterToVoltage< taDataLShift >( voltageRegister, aMaxAbsoluteVoltage );
     }
     return result;
 }
 
-template < std::uint8_t taMultiRegisterOffset, std::uint8_t taMultiRegisterPeriod >
+template < std::uint8_t taMultiRegisterOffset,
+           std::uint8_t taMultiRegisterPeriod,
+           std::uint8_t taDataLShift >
 int
-CIina3221::SetVoltageRegister( float aVoltage, std::uint8_t aChannel ) NOEXCEPT
+CIina3221::SetVoltageRegister( float aVoltage,
+                               float aMaxAbsoluteVoltage,
+                               std::uint8_t aChannel ) NOEXCEPT
 {
-    const std::uint16_t voltageRegister = VoltageToBusRegister( aVoltage );
+    const std::uint16_t voltageRegister
+        = VoltageToBusRegister< taDataLShift >( aVoltage, aMaxAbsoluteVoltage );
     return SetVoltageRegister< taMultiRegisterOffset, taMultiRegisterPeriod >( voltageRegister,
                                                                                aChannel );
 }

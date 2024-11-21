@@ -178,23 +178,59 @@ public:
         bool iRstart = false;
     };
 
+    struct CMaskEnable
+    {
+        CMaskEnable( ){ };
+
+        bool iCVRF = false;  // Bit 0
+        bool iTCF = true;    // Bit 1
+        bool iPVF = false;   // Bit 2
+
+        bool iWF3 = false;  // Bit 3
+        bool iWF2 = false;  // Bit 4
+        bool iWF1 = false;  // Bit 5
+
+        bool iSF = false;  // Bit 6
+
+        bool iCF3 = false;  // Bit 7
+        bool iCF2 = false;  // Bit 8
+        bool iCF1 = false;  // Bit 9
+        bool iCEN = false;  // Bit 10
+        bool iWEN = false;  // Bit 11
+
+        bool iSSC3 = false;  // Bit 12
+        bool iSSC2 = false;  // Bit 13
+        bool iSSC1 = false;  // Bit 14
+    };
+
     CIina3221( IAbstractI2CBus& aI2CBus, std::uint8_t aDeviceAddress = KDefaultAddress ) NOEXCEPT;
     ~CIina3221( ) = default;
 
     int Init( const CConfig& aConfig = { } ) NOEXCEPT;
 
-    int SetConfig( const CConfig& aConfig ) NOEXCEPT;
     int GetConfig( CConfig& aConfig ) NOEXCEPT;
+    int SetConfig( const CConfig& aConfig ) NOEXCEPT;
 
-    int BusVoltageV( float& aVoltage, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
     int ShuntVoltageV( float& aVoltage, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
+    int BusVoltageV( float& aVoltage, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
 
-    int GetCriticalAlertLimit( std::uint16_t& aLimit, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
-    int SetCriticalAlertLimit( std::uint16_t aLimit, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
+    int GetShuntCriticalAlertLimit( float& aLimit, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
+    int SetShuntCriticalAlertLimit( float aLimit, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
+
+    int GetShuntWarningAlertLimit( float& aLimit, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
+    int SetShuntWarningAlertLimit( float aLimit, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
+
+    int GetShuntVoltageSum( float& aLimit ) NOEXCEPT;
+
+    int GetShuntVoltageSumLimit( float& aLimit ) NOEXCEPT;
+    int SetShuntVoltageSumLimit( float aLimit ) NOEXCEPT;
+
+    int GetMaskEnable( CMaskEnable& aConfig ) NOEXCEPT;
+    int SetMaskEnable( const CMaskEnable& aConfig ) NOEXCEPT;
 
 #ifdef __EXCEPTIONS
     inline float
-    BusVoltageV( std::uint8_t aChannel = KChannel1 )
+    ShuntVoltageV( std::uint8_t aChannel = KChannel1 )
     {
         float voltage = 0.0;
         ThrowOnError( BusVoltageV( voltage, aChannel ) );
@@ -202,7 +238,7 @@ public:
     }
 
     inline float
-    ShuntVoltageV( std::uint8_t aChannel = KChannel1 )
+    BusVoltageV( std::uint8_t aChannel = KChannel1 )
     {
         float voltage = 0.0;
         ThrowOnError( BusVoltageV( voltage, aChannel ) );
@@ -216,11 +252,6 @@ private:
     const std::uint8_t iDeviceAddress;
     std::uint8_t iLastRegisterAddress = 0x00;
 
-    float BusRegisterToVoltage( std::uint16_t aVoltageRegister ) NOEXCEPT;
-    std::uint16_t VoltageToBusRegister( float aVoltageRegister ) NOEXCEPT;
-    float ShuntRegisterToVoltage( std::uint16_t aShuntVoltageRegister ) NOEXCEPT;
-    std::uint16_t ShuntVoltageToRegister( float aShuntVoltage ) NOEXCEPT;
-
     template < typename taRegisterType >
     int ReadRegister( std::uint8_t aReg, taRegisterType& aRegisterValue ) NOEXCEPT;
     template < typename taRegisterType >
@@ -232,10 +263,18 @@ private:
     template < std::uint8_t taMultiRegisterOffset, std::uint8_t taMultiRegisterPeriod >
     inline int SetVoltageRegister( std::uint16_t aVoltageRegister, std::uint8_t aChannel ) NOEXCEPT;
 
-    template < std::uint8_t taMultiRegisterOffset, std::uint8_t taMultiRegisterPeriod >
-    inline int GetVoltageRegister( float& aVoltage, std::uint8_t aChannel ) NOEXCEPT;
-    template < std::uint8_t taMultiRegisterOffset, std::uint8_t taMultiRegisterPeriod >
-    inline int SetVoltageRegister( float aVoltage, std::uint8_t aChannel ) NOEXCEPT;
+    template < std::uint8_t taMultiRegisterOffset,
+               std::uint8_t taMultiRegisterPeriod,
+               std::uint8_t taDataLShift = 3 >
+    inline int GetVoltageRegister( float& aVoltage,
+                                   float aMaxAbsoluteVoltage,
+                                   std::uint8_t aChannel ) NOEXCEPT;
+    template < std::uint8_t taMultiRegisterOffset,
+               std::uint8_t taMultiRegisterPeriod,
+               std::uint8_t taDataLShift = 3 >
+    inline int SetVoltageRegister( float aVoltage,
+                                   float aMaxAbsoluteVoltage,
+                                   std::uint8_t aChannel ) NOEXCEPT;
 
 #ifdef __EXCEPTIONS
     static inline int
