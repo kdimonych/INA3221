@@ -14,14 +14,18 @@ namespace ExternalDevice
 namespace
 {
 
-constexpr std::int32_t KFullScaleRegisterValue = 0x0FFF;
-constexpr float KMaxBusVoltage = 32.76f;     // 0xFFF = 32.76V
-constexpr float KMaxShuntVoltage = 0.1638f;  // 0xFFF = 0.1638V
+constexpr std::int16_t KFullScaleRegisterValue = 0x0FFF * 8;
+constexpr std::int16_t KFullScalePowerUperLimitRegisterValue = 0x2710;   // Per 10.00 V
+constexpr std::int16_t KFullScalePowerLowerLimitRegisterValue = 0x2328;  // Per 9.00 V
+constexpr float KMaxBusVoltage = 32.76f;                                 // 0x0FFF * 8 = 32.76V
+constexpr float KMaxShuntVoltage = 0.1638f;                              // 0x0FFF * 8 = 0.1638V
+constexpr float KFullScalePowerUperLimitVoltage = 10.0f;                 // 10.00 V
+constexpr float KFullScalePowerLowerLimitVoltage = 9.0f;                 // 9.00 V
 
 static constexpr std::uint8_t KRegConfig = 0x00;
 static constexpr std::uint8_t KDieId = 0xFF;
 
-constexpr std::uint8_t KChannelNumber = 3;  // 0xFFF = 0.1638V
+constexpr std::uint8_t KChannelNumber = 3;
 
 template < class taValue, class taCompare = std::less< taValue > >
 constexpr const taValue&
@@ -70,27 +74,29 @@ ChangeEndian( std::uint16_t x ) NOEXCEPT
 
 template < std::uint8_t taDataLShift = 3 >
 float
-BusRegisterToVoltage( std::uint16_t aVoltageRegister, float aMaxAbsoluteVoltage ) NOEXCEPT
+BusRegisterToVoltage( std::uint16_t aVoltageRegister,
+                      float aFullScaleAbsoluteVoltage,
+                      std::int16_t aFullScaleRegisterValue = KFullScaleRegisterValue ) NOEXCEPT
 {
     constexpr uint16_t mask = 0xFFFF << taDataLShift;
-    constexpr uint16_t divider = 1 << taDataLShift;
 
-    const auto rawVoltage = FromTwosComplement( aVoltageRegister & mask ) / divider;
-    const float voltage = aMaxAbsoluteVoltage * rawVoltage / KFullScaleRegisterValue;
+    const auto rawVoltage = FromTwosComplement( aVoltageRegister & mask );
+    const float voltage = aFullScaleAbsoluteVoltage * rawVoltage / aFullScaleRegisterValue;
     return voltage;
 }
 
 template < std::uint8_t taDataLShift = 3 >
 std::uint16_t
-VoltageToBusRegister( float aVoltage, float aMaxAbsoluteVoltage ) NOEXCEPT
+VoltageToBusRegister( float aVoltage,
+                      float aFullScaleAbsoluteVoltage,
+                      std::int16_t aFullScaleRegisterValue = KFullScaleRegisterValue ) NOEXCEPT
 {
     constexpr uint16_t mask = 0xFFFF << taDataLShift;
-    constexpr uint16_t divider = 1 << taDataLShift;
 
-    aVoltage = Clamp( aVoltage, -aMaxAbsoluteVoltage, aMaxAbsoluteVoltage )
-               * KFullScaleRegisterValue / aMaxAbsoluteVoltage;
+    aVoltage = Clamp( aVoltage, -aFullScaleAbsoluteVoltage, aFullScaleAbsoluteVoltage )
+               * aFullScaleRegisterValue / aFullScaleAbsoluteVoltage;
     const auto rawVoltage = static_cast< std::int16_t >( aVoltage );
-    return ToTwosComplement( rawVoltage * divider ) & mask;
+    return ToTwosComplement( rawVoltage ) & mask;
 }
 
 std::uint16_t
@@ -388,6 +394,55 @@ CIina3221::SetMaskEnable( const CMaskEnable& aMaskEnable ) NOEXCEPT
 {
     const std::uint16_t maskEnableRegister = PackMaskEnable( aMaskEnable );
     return WriteRegister( KRegConfig, maskEnableRegister );
+}
+
+int
+CIina3221::GetPowerValidUpperLimit( float& aPowerValidUpperLimit ) NOEXCEPT
+{
+    constexpr std::uint8_t KRegisterAddress = 0x10;
+    std::uint16_t voltageRegister = 0;
+    const auto result = ReadRegister( KRegisterAddress, voltageRegister );
+    if ( result == KOk )
+    {
+        aPowerValidUpperLimit
+            = BusRegisterToVoltage( voltageRegister, KFullScalePowerUperLimitVoltage,
+                                    KFullScalePowerUperLimitRegisterValue );
+    }
+    return result;
+}
+int
+CIina3221::SetPowerValidUpperLimit( float aPowerValidUpperLimit ) NOEXCEPT
+{
+    constexpr std::uint8_t KRegisterAddress = 0x10;
+    const std::uint16_t voltageRegister
+        = VoltageToBusRegister( aPowerValidUpperLimit, KFullScalePowerUperLimitVoltage,
+                                KFullScalePowerUperLimitRegisterValue );
+    return WriteRegister( KRegisterAddress, voltageRegister );
+}
+
+int
+CIina3221::GetPowerValidLowerLimit( float& aPowerValidLowerLimit ) NOEXCEPT
+{
+    constexpr std::uint8_t KRegisterAddress = 0x11;
+    std::uint16_t voltageRegister = 0;
+    const auto result = ReadRegister( KRegisterAddress, voltageRegister );
+    if ( result == KOk )
+    {
+        aPowerValidLowerLimit
+            = BusRegisterToVoltage( voltageRegister, KFullScalePowerLowerLimitVoltage,
+                                    KFullScalePowerLowerLimitRegisterValue );
+    }
+    return result;
+}
+
+int
+CIina3221::SetPowerValidLowerLimit( float aPowerValidLowerLimit ) NOEXCEPT
+{
+    constexpr std::uint8_t KRegisterAddress = 0x11;
+    const std::uint16_t voltageRegister
+        = VoltageToBusRegister( aPowerValidLowerLimit, KFullScalePowerLowerLimitVoltage,
+                                KFullScalePowerLowerLimitRegisterValue );
+    return WriteRegister( KRegisterAddress, voltageRegister );
 }
 
 /************************ Private part ************************/

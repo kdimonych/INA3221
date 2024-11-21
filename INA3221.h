@@ -214,26 +214,33 @@ public:
     int ShuntVoltageV( float& aVoltage, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
     int BusVoltageV( float& aVoltage, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
 
-    int GetShuntCriticalAlertLimit( float& aLimit, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
-    int SetShuntCriticalAlertLimit( float aLimit, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
+    int GetShuntCriticalAlertLimit( float& aShuntLimit,
+                                    std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
+    int SetShuntCriticalAlertLimit( float aShuntLimit, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
 
-    int GetShuntWarningAlertLimit( float& aLimit, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
-    int SetShuntWarningAlertLimit( float aLimit, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
+    int GetShuntWarningAlertLimit( float& aShuntLimit, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
+    int SetShuntWarningAlertLimit( float aShuntLimit, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
 
-    int GetShuntVoltageSum( float& aLimit ) NOEXCEPT;
+    int GetShuntVoltageSum( float& aShuntSum ) NOEXCEPT;
 
-    int GetShuntVoltageSumLimit( float& aLimit ) NOEXCEPT;
-    int SetShuntVoltageSumLimit( float aLimit ) NOEXCEPT;
+    int GetShuntVoltageSumLimit( float& aShuntSumLimit ) NOEXCEPT;
+    int SetShuntVoltageSumLimit( float aShuntSumLimit ) NOEXCEPT;
 
-    int GetMaskEnable( CMaskEnable& aConfig ) NOEXCEPT;
-    int SetMaskEnable( const CMaskEnable& aConfig ) NOEXCEPT;
+    int GetMaskEnable( CMaskEnable& aMaskEnable ) NOEXCEPT;
+    int SetMaskEnable( const CMaskEnable& aMaskEnable ) NOEXCEPT;
+
+    int GetPowerValidUpperLimit( float& aPowerValidUpperLimit ) NOEXCEPT;
+    int SetPowerValidUpperLimit( float aPowerValidUpperLimit ) NOEXCEPT;
+
+    int GetPowerValidLowerLimit( float& aPowerValidLowerLimit ) NOEXCEPT;
+    int SetPowerValidLowerLimit( float aPowerValidLowerLimit ) NOEXCEPT;
 
 #ifdef __EXCEPTIONS
     inline float
     ShuntVoltageV( std::uint8_t aChannel = KChannel1 )
     {
         float voltage = 0.0;
-        ThrowOnError( BusVoltageV( voltage, aChannel ) );
+        ThrowOnError( ShuntVoltageV( voltage, aChannel ) );
         return voltage;
     }
 
@@ -242,6 +249,22 @@ public:
     {
         float voltage = 0.0;
         ThrowOnError( BusVoltageV( voltage, aChannel ) );
+        return voltage;
+    }
+
+    inline float
+    GetPowerValidUpperLimit( )
+    {
+        float voltage = 0.0;
+        ThrowOnError( GetPowerValidUpperLimit( voltage ) );
+        return voltage;
+    }
+
+    inline float
+    GetPowerValidLowerLimit( )
+    {
+        float voltage = 0.0;
+        ThrowOnError( GetPowerValidLowerLimit( voltage ) );
         return voltage;
     }
 #endif
