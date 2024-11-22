@@ -208,6 +208,27 @@ public:
 
     int Init( const CConfig& aConfig = { } ) NOEXCEPT;
 
+    inline int
+    Reset( ) NOEXCEPT
+    {
+        CConfig config;
+        config.iRstart = true;
+        return SetConfig( config ) == KOk;
+    }
+
+    inline int
+    Reset( CConfig aConfig ) NOEXCEPT
+    {
+        aConfig.iRstart = true;
+        auto result = SetConfig( aConfig ) == KOk;
+        if ( result == KOk )
+        {
+            aConfig.iRstart = false;
+            return SetConfig( aConfig );
+        }
+        return result;
+    }
+
     int GetConfig( CConfig& aConfig ) NOEXCEPT;
     int SetConfig( const CConfig& aConfig ) NOEXCEPT;
 

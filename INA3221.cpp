@@ -108,8 +108,8 @@ PackConfig( const CIina3221::CConfig& aConfig ) NOEXCEPT
     result |= static_cast< std::uint16_t >( aConfig.iBusVoltageConversionTime ) << 6;
     result |= static_cast< std::uint16_t >( aConfig.iAveragingMode ) << 9;
     result |= static_cast< std::uint16_t >( aConfig.iChannel3Enable ) << 12;
-    result |= static_cast< std::uint16_t >( aConfig.iChannel3Enable ) << 13;
-    result |= static_cast< std::uint16_t >( aConfig.iChannel3Enable ) << 14;
+    result |= static_cast< std::uint16_t >( aConfig.iChannel2Enable ) << 13;
+    result |= static_cast< std::uint16_t >( aConfig.iChannel1Enable ) << 14;
     result |= static_cast< std::uint16_t >( aConfig.iRstart ) << 15;
 
     return result;
@@ -250,9 +250,7 @@ CIina3221::Init( const CConfig& aConfig ) NOEXCEPT
     }
 
     {
-        const std::uint16_t packedConfig
-            = PackConfig( aConfig );  // | 0x8000;  // 0x80 just set reset bit
-        const auto operationResult = WriteRegister( KRegConfig, packedConfig );
+        const auto operationResult = Reset( aConfig );
         if ( operationResult != KOk )
         {
             // Unable to reset the device
@@ -380,8 +378,9 @@ CIina3221::SetShuntVoltageSumLimit( float aShuntSumLimit ) NOEXCEPT
 int
 CIina3221::GetMaskEnable( CMaskEnable& aMaskEnable ) NOEXCEPT
 {
+    constexpr std::uint8_t KRegisterAddress = 0x0F;
     std::uint16_t maskEnableRegister = 0x0000;
-    const auto result = ReadRegister( KRegConfig, maskEnableRegister );
+    const auto result = ReadRegister( KRegisterAddress, maskEnableRegister );
     if ( result == KOk )
     {
         UnpackMaskEnable( aMaskEnable, maskEnableRegister );
@@ -392,8 +391,9 @@ CIina3221::GetMaskEnable( CMaskEnable& aMaskEnable ) NOEXCEPT
 int
 CIina3221::SetMaskEnable( const CMaskEnable& aMaskEnable ) NOEXCEPT
 {
+    constexpr std::uint8_t KRegisterAddress = 0x0F;
     const std::uint16_t maskEnableRegister = PackMaskEnable( aMaskEnable );
-    return WriteRegister( KRegConfig, maskEnableRegister );
+    return WriteRegister( KRegisterAddress, maskEnableRegister );
 }
 
 int
