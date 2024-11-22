@@ -15,8 +15,6 @@ namespace
 {
 
 constexpr std::int16_t KFullScaleRegisterValue = 0x0FFF;
-constexpr float KMaxBusVoltage = 32.76f;     // 0x0FFF = 32.76V
-constexpr float KMaxShuntVoltage = 0.1638f;  // 0x0FFF = 0.1638V
 
 static constexpr std::uint8_t KRegConfig = 0x00;
 static constexpr std::uint8_t KDieId = 0xFF;
@@ -285,7 +283,7 @@ CIina3221::ShuntVoltageV( float& aVoltage, std::uint8_t aChannel ) NOEXCEPT
     constexpr std::uint8_t KRegisterPeriod = 2;
 
     return GetVoltageRegister< KRegisterAddressOffset, KRegisterPeriod >(
-        aVoltage, KMaxShuntVoltage, aChannel );
+        aVoltage, iMaxShuntVoltage, aChannel );
 }
 
 int
@@ -294,7 +292,7 @@ CIina3221::BusVoltageV( float& aVoltage, std::uint8_t aChannel ) NOEXCEPT
     constexpr std::uint8_t KRegisterAddressOffset = 0x02;
     constexpr std::uint8_t KRegisterPeriod = 2;
 
-    return GetVoltageRegister< KRegisterAddressOffset, KRegisterPeriod >( aVoltage, KMaxBusVoltage,
+    return GetVoltageRegister< KRegisterAddressOffset, KRegisterPeriod >( aVoltage, iMaxBusVoltage,
                                                                           aChannel );
 }
 
@@ -346,7 +344,7 @@ CIina3221::GetShuntVoltageSum( float& aShuntSum ) NOEXCEPT
     const auto result = ReadRegister( KRegisterAddress, voltageRegister );
     if ( result != KOk )
     {
-        aShuntSum = BusRegisterToVoltage< 2 >( voltageRegister, KMaxShuntVoltage );
+        aShuntSum = BusRegisterToVoltage< 2 >( voltageRegister, iMaxShuntVoltage );
     }
     return result;
 }

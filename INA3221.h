@@ -92,6 +92,12 @@ public:
     static constexpr int KInvalidArgumentError = -2;
     static constexpr int KInvalidVendor = -3;
 
+    static constexpr float KMaxBusVoltage = 32.76f;     // 0x0FFF = 32.76V
+    static constexpr float KMaxShuntVoltage = 0.1638f;  // 0x0FFF = 0.1638V
+
+    float iMaxBusVoltage = KMaxBusVoltage * 0.99880192;
+    float iMaxShuntVoltage = KMaxShuntVoltage;
+
 #ifdef __EXCEPTIONS
     template < int taError, const char* const taDescription >
     class EBase : public std::exception
