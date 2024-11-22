@@ -14,13 +14,9 @@ namespace ExternalDevice
 namespace
 {
 
-constexpr std::int16_t KFullScaleRegisterValue = 0x0FFF * 8;
-constexpr std::int16_t KFullScalePowerUperLimitRegisterValue = 0x2710;   // Per 10.00 V
-constexpr std::int16_t KFullScalePowerLowerLimitRegisterValue = 0x2328;  // Per 9.00 V
-constexpr float KMaxBusVoltage = 32.76f;                                 // 0x0FFF * 8 = 32.76V
-constexpr float KMaxShuntVoltage = 0.1638f;                              // 0x0FFF * 8 = 0.1638V
-constexpr float KFullScalePowerUperLimitVoltage = 10.0f;                 // 10.00 V
-constexpr float KFullScalePowerLowerLimitVoltage = 9.0f;                 // 9.00 V
+constexpr std::int16_t KFullScaleRegisterValue = 0x0FFF;
+constexpr float KMaxBusVoltage = 32.76f;     // 0x0FFF = 32.76V
+constexpr float KMaxShuntVoltage = 0.1638f;  // 0x0FFF = 0.1638V
 
 static constexpr std::uint8_t KRegConfig = 0x00;
 static constexpr std::uint8_t KDieId = 0xFF;
@@ -79,8 +75,9 @@ BusRegisterToVoltage( std::uint16_t aVoltageRegister,
                       std::int16_t aFullScaleRegisterValue = KFullScaleRegisterValue ) NOEXCEPT
 {
     constexpr uint16_t mask = 0xFFFF << taDataLShift;
+    constexpr int16_t divider = 1 << taDataLShift;
 
-    const auto rawVoltage = FromTwosComplement( aVoltageRegister & mask );
+    const auto rawVoltage = FromTwosComplement( aVoltageRegister & mask ) / divider;
     const float voltage = aFullScaleAbsoluteVoltage * rawVoltage / aFullScaleRegisterValue;
     return voltage;
 }
@@ -92,11 +89,12 @@ VoltageToBusRegister( float aVoltage,
                       std::int16_t aFullScaleRegisterValue = KFullScaleRegisterValue ) NOEXCEPT
 {
     constexpr uint16_t mask = 0xFFFF << taDataLShift;
+    constexpr int16_t multiplier = 1 << taDataLShift;
 
     aVoltage = Clamp( aVoltage, -aFullScaleAbsoluteVoltage, aFullScaleAbsoluteVoltage )
                * aFullScaleRegisterValue / aFullScaleAbsoluteVoltage;
     const auto rawVoltage = static_cast< std::int16_t >( aVoltage );
-    return ToTwosComplement( rawVoltage ) & mask;
+    return ToTwosComplement( rawVoltage * multiplier ) & mask;
 }
 
 std::uint16_t
@@ -405,8 +403,7 @@ CIina3221::GetPowerValidUpperLimit( float& aPowerValidUpperLimit ) NOEXCEPT
     if ( result == KOk )
     {
         aPowerValidUpperLimit
-            = BusRegisterToVoltage( voltageRegister, KFullScalePowerUperLimitVoltage,
-                                    KFullScalePowerUperLimitRegisterValue );
+            = BusRegisterToVoltage( voltageRegister, KMaxBusVoltage, KFullScaleRegisterValue );
     }
     return result;
 }
@@ -415,8 +412,7 @@ CIina3221::SetPowerValidUpperLimit( float aPowerValidUpperLimit ) NOEXCEPT
 {
     constexpr std::uint8_t KRegisterAddress = 0x10;
     const std::uint16_t voltageRegister
-        = VoltageToBusRegister( aPowerValidUpperLimit, KFullScalePowerUperLimitVoltage,
-                                KFullScalePowerUperLimitRegisterValue );
+        = VoltageToBusRegister( aPowerValidUpperLimit, KMaxBusVoltage, KFullScaleRegisterValue );
     return WriteRegister( KRegisterAddress, voltageRegister );
 }
 
@@ -429,8 +425,7 @@ CIina3221::GetPowerValidLowerLimit( float& aPowerValidLowerLimit ) NOEXCEPT
     if ( result == KOk )
     {
         aPowerValidLowerLimit
-            = BusRegisterToVoltage( voltageRegister, KFullScalePowerLowerLimitVoltage,
-                                    KFullScalePowerLowerLimitRegisterValue );
+            = BusRegisterToVoltage( voltageRegister, KMaxBusVoltage, KFullScaleRegisterValue );
     }
     return result;
 }
@@ -440,8 +435,7 @@ CIina3221::SetPowerValidLowerLimit( float aPowerValidLowerLimit ) NOEXCEPT
 {
     constexpr std::uint8_t KRegisterAddress = 0x11;
     const std::uint16_t voltageRegister
-        = VoltageToBusRegister( aPowerValidLowerLimit, KFullScalePowerLowerLimitVoltage,
-                                KFullScalePowerLowerLimitRegisterValue );
+        = VoltageToBusRegister( aPowerValidLowerLimit, KMaxBusVoltage, KFullScaleRegisterValue );
     return WriteRegister( KRegisterAddress, voltageRegister );
 }
 
