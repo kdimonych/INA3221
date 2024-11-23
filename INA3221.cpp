@@ -1,4 +1,4 @@
-#include <INA3221.h>
+#include "INA3221.h"
 
 #include <functional>
 #include <algorithm>
@@ -72,7 +72,7 @@ BusRegisterToVoltage( std::uint16_t aVoltageRegister,
                       float aFullScaleAbsoluteVoltage,
                       std::int16_t aFullScaleRegisterValue = KFullScaleRegisterValue ) NOEXCEPT
 {
-    constexpr uint16_t mask = 0xFFFF << taDataLShift;
+    constexpr uint16_t mask = 0xFFFF_u16 << taDataLShift;
     constexpr int16_t divider = 1 << taDataLShift;
 
     const auto rawVoltage = FromTwosComplement( aVoltageRegister & mask ) / divider;
@@ -86,7 +86,7 @@ VoltageToBusRegister( float aVoltage,
                       float aFullScaleAbsoluteVoltage,
                       std::int16_t aFullScaleRegisterValue = KFullScaleRegisterValue ) NOEXCEPT
 {
-    constexpr uint16_t mask = 0xFFFF << taDataLShift;
+    constexpr uint16_t mask = 0xFFFF_u16 << taDataLShift;
     constexpr int16_t multiplier = 1 << taDataLShift;
 
     aVoltage = Clamp( aVoltage, -aFullScaleAbsoluteVoltage, aFullScaleAbsoluteVoltage )
@@ -188,9 +188,9 @@ MultiRegisterAddress( std::uint8_t aOffset,
 
 }  // namespace
 
-CIina3221::CIina3221( IAbstractI2CBus& aI2CBus, std::uint8_t aDeviceAddress ) NOEXCEPT
-    : iI2CBus{ aI2CBus },
-      iDeviceAddress{ aDeviceAddress }
+CIina3221::CIina3221( AbstractPlatform::IAbstractI2CBus& aI2CBus,
+                      std::uint8_t aDeviceAddress ) NOEXCEPT : iI2CBus{ aI2CBus },
+                                                               iDeviceAddress{ aDeviceAddress }
 {
 }
 
