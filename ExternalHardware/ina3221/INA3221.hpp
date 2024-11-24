@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstring>
 #include <AbstractPlatform/common/Platform.hpp>
+#include <AbstractPlatform/common/ErrorCode.hpp>
 #include <AbstractPlatform/common/PlatformLiteral.hpp>
 #include <AbstractPlatform/i2c/AbstractI2C.hpp>
 
@@ -11,42 +12,11 @@ namespace ExternalHardware
 class CIina3221
 {
 public:
-    static constexpr int KOk = 0;
-    static constexpr int KGenericError = -1;
-    static constexpr int KInvalidArgumentError = -2;
-    static constexpr int KInvalidVendor = -3;
-
     static constexpr float KMaxBusVoltage = 32.76f;     // 0x0FFF = 32.76V
     static constexpr float KMaxShuntVoltage = 0.1638f;  // 0x0FFF = 0.1638V
 
     float iMaxBusVoltage = KMaxBusVoltage;
     float iMaxShuntVoltage = KMaxShuntVoltage;
-
-#ifdef __EXCEPTIONS
-    template < int taError, const char* const taDescription >
-    class EBase : public std::exception
-    {
-    public:
-        constexpr int
-        error( ) const NOEXCEPT
-        {
-            return taError;
-        }
-
-        const char*
-        what( ) const NOEXCEPT override
-        {
-            return taDescription;
-        }
-    };
-    static constexpr char KGenericErrorDescription[] = "Internal error";
-    static constexpr char KInvalidArgumentDescription[] = "Invalid argument";
-    static constexpr char KInvalidVendorDescription[] = "Invalid vendor";
-    using EGenericError = EBase< KGenericError, KGenericErrorDescription >;
-    using EInvalidArgumentError = EBase< KInvalidArgumentError, KInvalidArgumentDescription >;
-    using EInvalidVendorError = EBase< KInvalidVendor, KInvalidVendorDescription >;
-
-#endif
 
     static constexpr std::uint8_t KDefaultAddress = 0x40;  // A0 pulled to GND
     static constexpr std::uint8_t KVSAddress = 0x41;       // A0 pulled to VS
@@ -137,22 +107,22 @@ public:
                std::uint8_t aDeviceAddress = KDefaultAddress ) NOEXCEPT;
     ~CIina3221( ) = default;
 
-    int Init( const CConfig& aConfig = { } ) NOEXCEPT;
+    AbstractPlatform::TErrorCode Init( const CConfig& aConfig = { } ) NOEXCEPT;
 
-    inline int
+    inline AbstractPlatform::TErrorCode
     Reset( ) NOEXCEPT
     {
         CConfig config;
         config.iRstart = true;
-        return SetConfig( config ) == KOk;
+        return SetConfig( config ) == AbstractPlatform::KOk;
     }
 
-    inline int
+    inline AbstractPlatform::TErrorCode
     Reset( CConfig aConfig ) NOEXCEPT
     {
         aConfig.iRstart = true;
-        auto result = SetConfig( aConfig ) == KOk;
-        if ( result == KOk )
+        auto result = SetConfig( aConfig ) == AbstractPlatform::KOk;
+        if ( result == AbstractPlatform::KOk )
         {
             aConfig.iRstart = false;
             return SetConfig( aConfig );
@@ -160,39 +130,48 @@ public:
         return result;
     }
 
-    int GetConfig( CConfig& aConfig ) NOEXCEPT;
-    int SetConfig( const CConfig& aConfig ) NOEXCEPT;
+    AbstractPlatform::TErrorCode GetConfig( CConfig& aConfig ) NOEXCEPT;
+    AbstractPlatform::TErrorCode SetConfig( const CConfig& aConfig ) NOEXCEPT;
 
-    int ShuntVoltageV( float& aVoltage, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
-    int BusVoltageV( float& aVoltage, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
+    AbstractPlatform::TErrorCode ShuntVoltageV( float& aVoltage,
+                                                std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
+    AbstractPlatform::TErrorCode BusVoltageV( float& aVoltage,
+                                              std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
 
-    int GetShuntCriticalAlertLimit( float& aShuntLimit,
-                                    std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
-    int SetShuntCriticalAlertLimit( float aShuntLimit, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
+    AbstractPlatform::TErrorCode GetShuntCriticalAlertLimit( float& aShuntLimit,
+                                                             std::uint8_t aChannel
+                                                             = KChannel1 ) NOEXCEPT;
+    AbstractPlatform::TErrorCode SetShuntCriticalAlertLimit( float aShuntLimit,
+                                                             std::uint8_t aChannel
+                                                             = KChannel1 ) NOEXCEPT;
 
-    int GetShuntWarningAlertLimit( float& aShuntLimit, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
-    int SetShuntWarningAlertLimit( float aShuntLimit, std::uint8_t aChannel = KChannel1 ) NOEXCEPT;
+    AbstractPlatform::TErrorCode GetShuntWarningAlertLimit( float& aShuntLimit,
+                                                            std::uint8_t aChannel
+                                                            = KChannel1 ) NOEXCEPT;
+    AbstractPlatform::TErrorCode SetShuntWarningAlertLimit( float aShuntLimit,
+                                                            std::uint8_t aChannel
+                                                            = KChannel1 ) NOEXCEPT;
 
-    int GetShuntVoltageSum( float& aShuntSum ) NOEXCEPT;
+    AbstractPlatform::TErrorCode GetShuntVoltageSum( float& aShuntSum ) NOEXCEPT;
 
-    int GetShuntVoltageSumLimit( float& aShuntSumLimit ) NOEXCEPT;
-    int SetShuntVoltageSumLimit( float aShuntSumLimit ) NOEXCEPT;
+    AbstractPlatform::TErrorCode GetShuntVoltageSumLimit( float& aShuntSumLimit ) NOEXCEPT;
+    AbstractPlatform::TErrorCode SetShuntVoltageSumLimit( float aShuntSumLimit ) NOEXCEPT;
 
-    int GetMaskEnable( CMaskEnable& aMaskEnable ) NOEXCEPT;
-    int SetMaskEnable( const CMaskEnable& aMaskEnable ) NOEXCEPT;
+    AbstractPlatform::TErrorCode GetMaskEnable( CMaskEnable& aMaskEnable ) NOEXCEPT;
+    AbstractPlatform::TErrorCode SetMaskEnable( const CMaskEnable& aMaskEnable ) NOEXCEPT;
 
-    int GetPowerValidUpperLimit( float& aPowerValidUpperLimit ) NOEXCEPT;
-    int SetPowerValidUpperLimit( float aPowerValidUpperLimit ) NOEXCEPT;
+    AbstractPlatform::TErrorCode GetPowerValidUpperLimit( float& aPowerValidUpperLimit ) NOEXCEPT;
+    AbstractPlatform::TErrorCode SetPowerValidUpperLimit( float aPowerValidUpperLimit ) NOEXCEPT;
 
-    int GetPowerValidLowerLimit( float& aPowerValidLowerLimit ) NOEXCEPT;
-    int SetPowerValidLowerLimit( float aPowerValidLowerLimit ) NOEXCEPT;
+    AbstractPlatform::TErrorCode GetPowerValidLowerLimit( float& aPowerValidLowerLimit ) NOEXCEPT;
+    AbstractPlatform::TErrorCode SetPowerValidLowerLimit( float aPowerValidLowerLimit ) NOEXCEPT;
 
 #ifdef __EXCEPTIONS
     inline float
     ShuntVoltageV( std::uint8_t aChannel = KChannel1 )
     {
         float voltage = 0.0;
-        ThrowOnError( ShuntVoltageV( voltage, aChannel ) );
+        AbstractPlatform::ThrowOnError( ShuntVoltageV( voltage, aChannel ) );
         return voltage;
     }
 
@@ -200,7 +179,7 @@ public:
     BusVoltageV( std::uint8_t aChannel = KChannel1 )
     {
         float voltage = 0.0;
-        ThrowOnError( BusVoltageV( voltage, aChannel ) );
+        AbstractPlatform::ThrowOnError( BusVoltageV( voltage, aChannel ) );
         return voltage;
     }
 
@@ -208,7 +187,7 @@ public:
     GetPowerValidUpperLimit( )
     {
         float voltage = 0.0;
-        ThrowOnError( GetPowerValidUpperLimit( voltage ) );
+        AbstractPlatform::ThrowOnError( GetPowerValidUpperLimit( voltage ) );
         return voltage;
     }
 
@@ -216,7 +195,7 @@ public:
     GetPowerValidLowerLimit( )
     {
         float voltage = 0.0;
-        ThrowOnError( GetPowerValidLowerLimit( voltage ) );
+        AbstractPlatform::ThrowOnError( GetPowerValidLowerLimit( voltage ) );
         return voltage;
     }
 #endif
@@ -228,52 +207,31 @@ private:
     std::uint8_t iLastRegisterAddress = 0x00;
 
     template < typename taRegisterType >
-    int ReadRegister( std::uint8_t aReg, taRegisterType& aRegisterValue ) NOEXCEPT;
+    AbstractPlatform::TErrorCode ReadRegister( std::uint8_t aReg,
+                                               taRegisterType& aRegisterValue ) NOEXCEPT;
     template < typename taRegisterType >
-    int WriteRegister( std::uint8_t aReg, taRegisterType aRegisterValue ) NOEXCEPT;
+    AbstractPlatform::TErrorCode WriteRegister( std::uint8_t aReg,
+                                                taRegisterType aRegisterValue ) NOEXCEPT;
 
     template < std::uint8_t taMultiRegisterOffset, std::uint8_t taMultiRegisterPeriod >
-    inline int GetVoltageRegister( std::uint16_t& aVoltageRegister,
-                                   std::uint8_t aChannel ) NOEXCEPT;
+    inline AbstractPlatform::TErrorCode GetVoltageRegister( std::uint16_t& aVoltageRegister,
+                                                            std::uint8_t aChannel ) NOEXCEPT;
     template < std::uint8_t taMultiRegisterOffset, std::uint8_t taMultiRegisterPeriod >
-    inline int SetVoltageRegister( std::uint16_t aVoltageRegister, std::uint8_t aChannel ) NOEXCEPT;
+    inline AbstractPlatform::TErrorCode SetVoltageRegister( std::uint16_t aVoltageRegister,
+                                                            std::uint8_t aChannel ) NOEXCEPT;
 
     template < std::uint8_t taMultiRegisterOffset,
                std::uint8_t taMultiRegisterPeriod,
                std::uint8_t taDataLShift = 3 >
-    inline int GetVoltageRegister( float& aVoltage,
-                                   float aMaxAbsoluteVoltage,
-                                   std::uint8_t aChannel ) NOEXCEPT;
+    inline AbstractPlatform::TErrorCode GetVoltageRegister( float& aVoltage,
+                                                            float aMaxAbsoluteVoltage,
+                                                            std::uint8_t aChannel ) NOEXCEPT;
     template < std::uint8_t taMultiRegisterOffset,
                std::uint8_t taMultiRegisterPeriod,
                std::uint8_t taDataLShift = 3 >
-    inline int SetVoltageRegister( float aVoltage,
-                                   float aMaxAbsoluteVoltage,
-                                   std::uint8_t aChannel ) NOEXCEPT;
-
-#ifdef __EXCEPTIONS
-    static inline int
-    ThrowOnError( int aErrorCode )
-    {
-        switch ( aErrorCode )
-        {
-        case KOk:
-            return aErrorCode;
-            break;
-        case KInvalidArgumentError:
-            throw EInvalidArgumentError{ };
-            break;
-        case KInvalidVendor:
-            throw EInvalidVendorError{ };
-            break;
-        case KGenericError:
-        default:
-            throw EGenericError{ };
-            break;
-        }
-        return aErrorCode;
-    }
-#endif
+    inline AbstractPlatform::TErrorCode SetVoltageRegister( float aVoltage,
+                                                            float aMaxAbsoluteVoltage,
+                                                            std::uint8_t aChannel ) NOEXCEPT;
 };
 
 }  // namespace ExternalHardware
