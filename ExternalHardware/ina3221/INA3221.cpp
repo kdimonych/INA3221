@@ -1,4 +1,4 @@
-#include "INA3221.h"
+#include "INA3221.hpp"
 
 #include <functional>
 #include <algorithm>
@@ -9,7 +9,7 @@
 #define REG_DATA_ch2 0x03  // ch 2 shunt
 #define REG_DATA_ch3 0x05  // ch 3 shunt
 
-namespace ExternalDevice
+namespace ExternalHardware
 {
 namespace
 {
@@ -72,7 +72,7 @@ BusRegisterToVoltage( std::uint16_t aVoltageRegister,
                       float aFullScaleAbsoluteVoltage,
                       std::int16_t aFullScaleRegisterValue = KFullScaleRegisterValue ) NOEXCEPT
 {
-    constexpr uint16_t mask = 0xFFFF_u16 << taDataLShift;
+    constexpr uint16_t mask = static_cast< std::uint16_t >( 0xFFFF_u16 << taDataLShift );
     constexpr int16_t divider = 1 << taDataLShift;
 
     const auto rawVoltage = FromTwosComplement( aVoltageRegister & mask ) / divider;
@@ -86,7 +86,7 @@ VoltageToBusRegister( float aVoltage,
                       float aFullScaleAbsoluteVoltage,
                       std::int16_t aFullScaleRegisterValue = KFullScaleRegisterValue ) NOEXCEPT
 {
-    constexpr uint16_t mask = 0xFFFF_u16 << taDataLShift;
+    constexpr uint16_t mask = static_cast< std::uint16_t >( 0xFFFF_u16 << taDataLShift );
     constexpr int16_t multiplier = 1 << taDataLShift;
 
     aVoltage = Clamp( aVoltage, -aFullScaleAbsoluteVoltage, aFullScaleAbsoluteVoltage )
@@ -498,4 +498,4 @@ CIina3221::SetVoltageRegister( float aVoltage,
                                                                                aChannel );
 }
 
-}  // namespace ExternalDevice
+}  // namespace ExternalHardware
