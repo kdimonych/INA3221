@@ -195,7 +195,7 @@ CIina3221::CIina3221( AbstractPlatform::IAbstractI2CBus& aI2CBus,
 }
 
 template < typename taRegisterType >
-AbstractPlatform::TErrorCode
+CIina3221::TErrorCode
 CIina3221::ReadRegister( std::uint8_t aRegisterAddress, taRegisterType& aRegisterValue ) NOEXCEPT
 {
     const auto result
@@ -212,7 +212,7 @@ CIina3221::ReadRegister( std::uint8_t aRegisterAddress, taRegisterType& aRegiste
 }
 
 template < typename taRegisterType >
-AbstractPlatform::TErrorCode
+CIina3221::TErrorCode
 CIina3221::WriteRegister( std::uint8_t aRegisterAddress, taRegisterType aRegisterValue ) NOEXCEPT
 {
     aRegisterValue = ChangeEndian( aRegisterValue );
@@ -226,7 +226,7 @@ CIina3221::WriteRegister( std::uint8_t aRegisterAddress, taRegisterType aRegiste
     return AbstractPlatform::KGenericError;
 }
 
-AbstractPlatform::TErrorCode
+CIina3221::TErrorCode
 CIina3221::Init( const CConfig& aConfig ) NOEXCEPT
 {
     std::uint16_t checkVendorId = 0;
@@ -257,7 +257,7 @@ CIina3221::Init( const CConfig& aConfig ) NOEXCEPT
     return AbstractPlatform::KOk;
 }
 
-AbstractPlatform::TErrorCode
+CIina3221::TErrorCode
 CIina3221::GetConfig( CConfig& aConfig ) NOEXCEPT
 {
     std::uint16_t packedConfigRegister = 0x0000;
@@ -269,14 +269,14 @@ CIina3221::GetConfig( CConfig& aConfig ) NOEXCEPT
     return result;
 }
 
-AbstractPlatform::TErrorCode
+CIina3221::TErrorCode
 CIina3221::SetConfig( const CConfig& aConfig ) NOEXCEPT
 {
     const std::uint16_t packedConfigRegister = PackConfig( aConfig );
     return WriteRegister( KRegConfig, packedConfigRegister );
 }
 
-AbstractPlatform::TErrorCode
+CIina3221::TErrorCode
 CIina3221::ShuntVoltageV( float& aVoltage, std::uint8_t aChannel ) NOEXCEPT
 {
     constexpr std::uint8_t KRegisterAddressOffset = 0x01;
@@ -286,7 +286,7 @@ CIina3221::ShuntVoltageV( float& aVoltage, std::uint8_t aChannel ) NOEXCEPT
         aVoltage, iMaxShuntVoltage, aChannel );
 }
 
-AbstractPlatform::TErrorCode
+CIina3221::TErrorCode
 CIina3221::BusVoltageV( float& aVoltage, std::uint8_t aChannel ) NOEXCEPT
 {
     constexpr std::uint8_t KRegisterAddressOffset = 0x02;
@@ -296,7 +296,7 @@ CIina3221::BusVoltageV( float& aVoltage, std::uint8_t aChannel ) NOEXCEPT
                                                                           aChannel );
 }
 
-AbstractPlatform::TErrorCode
+CIina3221::TErrorCode
 CIina3221::GetShuntCriticalAlertLimit( float& aShuntLimit, std::uint8_t aChannel ) NOEXCEPT
 {
     constexpr std::uint8_t KRegisterAddressOffset = 0x07;
@@ -306,7 +306,7 @@ CIina3221::GetShuntCriticalAlertLimit( float& aShuntLimit, std::uint8_t aChannel
         aShuntLimit, KMaxShuntVoltage, aChannel );
 }
 
-AbstractPlatform::TErrorCode
+CIina3221::TErrorCode
 CIina3221::SetShuntCriticalAlertLimit( float aShuntLimit, std::uint8_t aChannel ) NOEXCEPT
 {
     constexpr std::uint8_t KRegisterAddressOffset = 0x07;
@@ -316,7 +316,7 @@ CIina3221::SetShuntCriticalAlertLimit( float aShuntLimit, std::uint8_t aChannel 
         aShuntLimit, KMaxShuntVoltage, aChannel );
 }
 
-AbstractPlatform::TErrorCode
+CIina3221::TErrorCode
 CIina3221::GetShuntWarningAlertLimit( float& aShuntLimit, std::uint8_t aChannel ) NOEXCEPT
 {
     constexpr std::uint8_t KRegisterAddressOffset = 0x08;
@@ -326,7 +326,7 @@ CIina3221::GetShuntWarningAlertLimit( float& aShuntLimit, std::uint8_t aChannel 
         aShuntLimit, KMaxShuntVoltage, aChannel );
 }
 
-AbstractPlatform::TErrorCode
+CIina3221::TErrorCode
 CIina3221::SetShuntWarningAlertLimit( float aShuntLimit, std::uint8_t aChannel ) NOEXCEPT
 {
     constexpr std::uint8_t KRegisterAddressOffset = 0x08;
@@ -336,7 +336,7 @@ CIina3221::SetShuntWarningAlertLimit( float aShuntLimit, std::uint8_t aChannel )
         aShuntLimit, KMaxShuntVoltage, aChannel );
 }
 
-AbstractPlatform::TErrorCode
+CIina3221::TErrorCode
 CIina3221::GetShuntVoltageSum( float& aShuntSum ) NOEXCEPT
 {
     constexpr std::uint8_t KRegisterAddress = 0x0D;
@@ -349,7 +349,7 @@ CIina3221::GetShuntVoltageSum( float& aShuntSum ) NOEXCEPT
     return result;
 }
 
-AbstractPlatform::TErrorCode
+CIina3221::TErrorCode
 CIina3221::GetShuntVoltageSumLimit( float& aShuntSumLimit ) NOEXCEPT
 {
     constexpr std::uint8_t KRegisterAddress = 0x0E;
@@ -362,7 +362,7 @@ CIina3221::GetShuntVoltageSumLimit( float& aShuntSumLimit ) NOEXCEPT
     return result;
 }
 
-AbstractPlatform::TErrorCode
+CIina3221::TErrorCode
 CIina3221::SetShuntVoltageSumLimit( float aShuntSumLimit ) NOEXCEPT
 {
     constexpr std::uint8_t KRegisterAddress = 0x0E;
@@ -371,7 +371,7 @@ CIina3221::SetShuntVoltageSumLimit( float aShuntSumLimit ) NOEXCEPT
     return WriteRegister( KRegisterAddress, voltageRegister );
 }
 
-AbstractPlatform::TErrorCode
+CIina3221::TErrorCode
 CIina3221::GetMaskEnable( CMaskEnable& aMaskEnable ) NOEXCEPT
 {
     constexpr std::uint8_t KRegisterAddress = 0x0F;
@@ -384,7 +384,7 @@ CIina3221::GetMaskEnable( CMaskEnable& aMaskEnable ) NOEXCEPT
     return result;
 }
 
-AbstractPlatform::TErrorCode
+CIina3221::TErrorCode
 CIina3221::SetMaskEnable( const CMaskEnable& aMaskEnable ) NOEXCEPT
 {
     constexpr std::uint8_t KRegisterAddress = 0x0F;
@@ -392,7 +392,7 @@ CIina3221::SetMaskEnable( const CMaskEnable& aMaskEnable ) NOEXCEPT
     return WriteRegister( KRegisterAddress, maskEnableRegister );
 }
 
-AbstractPlatform::TErrorCode
+CIina3221::TErrorCode
 CIina3221::GetPowerValidUpperLimit( float& aPowerValidUpperLimit ) NOEXCEPT
 {
     constexpr std::uint8_t KRegisterAddress = 0x10;
@@ -406,7 +406,7 @@ CIina3221::GetPowerValidUpperLimit( float& aPowerValidUpperLimit ) NOEXCEPT
     return result;
 }
 
-AbstractPlatform::TErrorCode
+CIina3221::TErrorCode
 CIina3221::SetPowerValidUpperLimit( float aPowerValidUpperLimit ) NOEXCEPT
 {
     constexpr std::uint8_t KRegisterAddress = 0x10;
@@ -415,7 +415,7 @@ CIina3221::SetPowerValidUpperLimit( float aPowerValidUpperLimit ) NOEXCEPT
     return WriteRegister( KRegisterAddress, voltageRegister );
 }
 
-AbstractPlatform::TErrorCode
+CIina3221::TErrorCode
 CIina3221::GetPowerValidLowerLimit( float& aPowerValidLowerLimit ) NOEXCEPT
 {
     constexpr std::uint8_t KRegisterAddress = 0x11;
@@ -429,7 +429,7 @@ CIina3221::GetPowerValidLowerLimit( float& aPowerValidLowerLimit ) NOEXCEPT
     return result;
 }
 
-AbstractPlatform::TErrorCode
+CIina3221::TErrorCode
 CIina3221::SetPowerValidLowerLimit( float aPowerValidLowerLimit ) NOEXCEPT
 {
     constexpr std::uint8_t KRegisterAddress = 0x11;
@@ -440,7 +440,7 @@ CIina3221::SetPowerValidLowerLimit( float aPowerValidLowerLimit ) NOEXCEPT
 
 /************************ Private part ************************/
 template < std::uint8_t taMultiRegisterOffset, std::uint8_t taMultiRegisterPeriod >
-AbstractPlatform::TErrorCode
+CIina3221::TErrorCode
 CIina3221::GetVoltageRegister( std::uint16_t& aVoltageRegister, std::uint8_t aChannel ) NOEXCEPT
 {
     if ( aChannel > KChannelNumber )
@@ -453,7 +453,7 @@ CIina3221::GetVoltageRegister( std::uint16_t& aVoltageRegister, std::uint8_t aCh
 }
 
 template < std::uint8_t taMultiRegisterOffset, std::uint8_t taMultiRegisterPeriod >
-AbstractPlatform::TErrorCode
+CIina3221::TErrorCode
 CIina3221::SetVoltageRegister( std::uint16_t aVoltageRegister, std::uint8_t aChannel ) NOEXCEPT
 {
     if ( aChannel > KChannelNumber )
@@ -469,7 +469,7 @@ CIina3221::SetVoltageRegister( std::uint16_t aVoltageRegister, std::uint8_t aCha
 template < std::uint8_t taMultiRegisterOffset,
            std::uint8_t taMultiRegisterPeriod,
            std::uint8_t taDataLShift >
-AbstractPlatform::TErrorCode
+CIina3221::TErrorCode
 CIina3221::GetVoltageRegister( float& aVoltage,
                                float aMaxAbsoluteVoltage,
                                std::uint8_t aChannel ) NOEXCEPT
@@ -488,7 +488,7 @@ CIina3221::GetVoltageRegister( float& aVoltage,
 template < std::uint8_t taMultiRegisterOffset,
            std::uint8_t taMultiRegisterPeriod,
            std::uint8_t taDataLShift >
-AbstractPlatform::TErrorCode
+CIina3221::TErrorCode
 CIina3221::SetVoltageRegister( float aVoltage,
                                float aMaxAbsoluteVoltage,
                                std::uint8_t aChannel ) NOEXCEPT
