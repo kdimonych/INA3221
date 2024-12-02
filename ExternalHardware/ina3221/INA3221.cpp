@@ -188,12 +188,6 @@ MultiRegisterAddress( std::uint8_t aOffset,
 
 }  // namespace
 
-CIina3221::CIina3221( AbstractPlatform::IAbstractI2CBus& aI2CBus,
-                      std::uint8_t aDeviceAddress ) NOEXCEPT : iI2CBus{ aI2CBus },
-                                                               iDeviceAddress{ aDeviceAddress }
-{
-}
-
 template < typename taRegisterType >
 CIina3221::TErrorCode
 CIina3221::ReadRegister( std::uint8_t aRegisterAddress, taRegisterType& aRegisterValue ) NOEXCEPT

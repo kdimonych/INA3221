@@ -105,8 +105,12 @@ public:
         bool iSSC1 = false;  // Bit 14
     };
 
-    CIina3221( AbstractPlatform::IAbstractI2CBus& aI2CBus,
-               std::uint8_t aDeviceAddress = KDefaultAddress ) NOEXCEPT;
+    constexpr CIina3221( AbstractPlatform::IAbstractI2CBus& aI2CBus,
+                         std::uint8_t aDeviceAddress = KDefaultAddress ) NOEXCEPT
+        : iI2CBus{ aI2CBus },
+          iDeviceAddress{ aDeviceAddress }
+    {
+    }
     ~CIina3221( ) = default;
 
     TErrorCode Init( const CConfig& aConfig = { } ) NOEXCEPT;
