@@ -1,4 +1,5 @@
 #include <ExternalHardware/ina3221/INA3221.hpp>
+#include <AbstractPlatform/common/TypeBinaryRepresentation.hpp>
 
 #include <functional>
 #include <algorithm>
@@ -192,6 +193,7 @@ template < typename taRegisterType >
 CIina3221::TErrorCode
 CIina3221::ReadRegister( std::uint8_t aRegisterAddress, taRegisterType& aRegisterValue ) NOEXCEPT
 {
+    using namespace AbstractPlatform;
     const auto result
         = aRegisterAddress == iLastRegisterAddress
               ? iI2CBus.ReadLastRegisterRaw( iDeviceAddress, aRegisterValue )
@@ -199,7 +201,8 @@ CIina3221::ReadRegister( std::uint8_t aRegisterAddress, taRegisterType& aRegiste
     if ( result )
     {
         iLastRegisterAddress = aRegisterAddress;
-        aRegisterValue = ChangeEndian( aRegisterValue );
+        aRegisterValue
+            = EndiannessConverter< Endianness::Native, Endianness::Big >::Convert( aRegisterValue );
         return AbstractPlatform::KOk;
     }
     return AbstractPlatform::KGenericError;
@@ -209,7 +212,9 @@ template < typename taRegisterType >
 CIina3221::TErrorCode
 CIina3221::WriteRegister( std::uint8_t aRegisterAddress, taRegisterType aRegisterValue ) NOEXCEPT
 {
-    aRegisterValue = ChangeEndian( aRegisterValue );
+    using namespace AbstractPlatform;
+    aRegisterValue
+        = EndiannessConverter< Endianness::Big, Endianness::Native >::Convert( aRegisterValue );
     const auto result
         = iI2CBus.WriteRegisterRaw( iDeviceAddress, aRegisterAddress, aRegisterValue );
     if ( result )
