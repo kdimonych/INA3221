@@ -210,7 +210,7 @@ public:
 
 private:
     /* data */
-    AbstractPlatform::IAbstractI2CBus& iI2CBus;
+    AbstractPlatform::CI2CBus iI2CBus;
     const std::uint8_t iDeviceAddress;
     std::uint8_t iLastRegisterAddress = 0x00;
 
